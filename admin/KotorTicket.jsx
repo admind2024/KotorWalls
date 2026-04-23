@@ -19,7 +19,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 const T = {
   en: {
     title: "Kotor City Walls", subtitle: "Purchase entrance tickets",
-    desc: "UNESCO World Heritage since 1979. 4.5 km of Venetian fortifications rising 280 m above the Bay of Kotor.",
+    desc: "The fortifications of the historic city of Kotor, with ramparts rising to the fortress of San Giovanni, are part of the Venetian Defense System inscribed on the UNESCO World Heritage List. Kotor combines the heritage of Illyria, Byzantium, Venice and Austria, making it one of the most authentic cultural gems of the Adriatic.",
     selectTickets: "Select tickets",
     total: "Total", continue: "Continue to details →",
     back: "Back",
@@ -28,7 +28,6 @@ const T = {
     name: "Full name", email: "Email", phone: "Phone (optional)",
     address: "Address (optional)", city: "City", zip: "Postal code", country: "Country",
     payNow: "Pay now", paySecure: "Secure payment",
-    secured: "Payments processed by Stripe · PCI DSS Level 1",
     success: "Payment successful",
     successSub: "Your tickets have been sent to your email.",
     viewTickets: "View tickets",
@@ -40,7 +39,7 @@ const T = {
   },
   me: {
     title: "Kotorske zidine", subtitle: "Kupovina ulaznica",
-    desc: "UNESCO svjetska baština od 1979. 4,5 km venecijanskih utvrđenja iznad Bokokotorskog zaliva.",
+    desc: "Utvrđenja istorijskog grada Kotora, sa bedemima koji se uzdižu do tvrđave Sv. Ivan, dio su Venecijanskog odbrambenog sistema upisanog u UNESCO Listu svjetske baštine. Kotor spaja nasljeđe Ilirije, Vizantije, Venecije i Austrije, što ga čini jednim od najautentičnijih kulturnih dragulja Jadrana.",
     selectTickets: "Izaberi karte",
     total: "Ukupno", continue: "Nastavi na podatke →",
     back: "Nazad",
@@ -49,7 +48,6 @@ const T = {
     name: "Ime i prezime", email: "Email", phone: "Telefon (opciono)",
     address: "Adresa (opciono)", city: "Grad", zip: "Poštanski broj", country: "Država",
     payNow: "Plati sada", paySecure: "Sigurno plaćanje",
-    secured: "Plaćanja obrađuje Stripe · PCI DSS Level 1",
     success: "Plaćanje uspješno",
     successSub: "Karte su poslate na tvoju email adresu.",
     viewTickets: "Prikaži karte",
@@ -61,7 +59,7 @@ const T = {
   },
   de: {
     title: "Stadtmauern von Kotor", subtitle: "Eintrittskarten kaufen",
-    desc: "UNESCO-Welterbe seit 1979. 4,5 km venezianische Befestigungen, 280 m über der Bucht.",
+    desc: "Die Befestigungsanlagen der Altstadt von Kotor, deren Mauern bis zur Festung San Giovanni hinaufreichen, sind Teil des Venezianischen Verteidigungssystems, das in die UNESCO-Welterbeliste eingetragen ist. Kotor vereint das Erbe Illyriens, Byzanz', Venedigs und Österreichs und zählt damit zu den authentischsten Kulturjuwelen der Adria.",
     selectTickets: "Tickets auswählen",
     total: "Gesamt", continue: "Weiter zu Details →",
     back: "Zurück",
@@ -70,7 +68,6 @@ const T = {
     name: "Vollständiger Name", email: "E-Mail", phone: "Telefon (optional)",
     address: "Adresse (optional)", city: "Stadt", zip: "PLZ", country: "Land",
     payNow: "Jetzt bezahlen", paySecure: "Sichere Zahlung",
-    secured: "Zahlungen durch Stripe · PCI DSS Level 1",
     success: "Zahlung erfolgreich",
     successSub: "Tickets an Ihre E-Mail gesendet.",
     viewTickets: "Tickets anzeigen",
@@ -82,7 +79,7 @@ const T = {
   },
   ru: {
     title: "Городские стены Котора", subtitle: "Купить входные билеты",
-    desc: "Объект ЮНЕСКО с 1979 года. 4,5 км венецианских укреплений над Которской бухтой.",
+    desc: "Укрепления исторического города Котор со стенами, поднимающимися к крепости Сан-Джованни, входят в Венецианскую оборонительную систему, включённую в Список всемирного наследия ЮНЕСКО. Котор сочетает наследие Иллирии, Византии, Венеции и Австрии, что делает его одной из самых аутентичных культурных жемчужин Адриатики.",
     selectTickets: "Выбор билетов",
     total: "Итого", continue: "Далее к данным →",
     back: "Назад",
@@ -91,7 +88,6 @@ const T = {
     name: "Полное имя", email: "Эл. почта", phone: "Телефон (необязательно)",
     address: "Адрес (необязательно)", city: "Город", zip: "Индекс", country: "Страна",
     payNow: "Оплатить", paySecure: "Безопасная оплата",
-    secured: "Платежи обрабатывает Stripe · PCI DSS Level 1",
     success: "Оплата прошла",
     successSub: "Билеты отправлены на вашу почту.",
     viewTickets: "Показать билеты",
@@ -103,7 +99,7 @@ const T = {
   },
   zh: {
     title: "科托尔城墙", subtitle: "购买入场票",
-    desc: "自1979年起成为联合国教科文组织世界遗产。威尼斯防御工事高耸于科托尔湾280米之上。",
+    desc: "科托尔古城的防御工事，其城墙蜿蜒而上直至圣约翰要塞，是被列入联合国教科文组织《世界遗产名录》的威尼斯防御体系的一部分。科托尔融合了伊利里亚、拜占庭、威尼斯和奥地利的文化遗产，是亚得里亚海最具真实历史底蕴的文化瑰宝之一。",
     selectTickets: "选择门票",
     total: "总计", continue: "继续填写信息 →",
     back: "返回",
@@ -112,7 +108,6 @@ const T = {
     name: "姓名", email: "邮箱", phone: "电话（可选）",
     address: "地址（可选）", city: "城市", zip: "邮编", country: "国家",
     payNow: "立即支付", paySecure: "安全支付",
-    secured: "由 Stripe 处理支付 · PCI DSS Level 1",
     success: "支付成功",
     successSub: "门票已发送至您的邮箱。",
     viewTickets: "查看门票",
@@ -131,6 +126,69 @@ const LANGS = [
   { code: "ru", label: "RU" },
   { code: "zh", label: "中文" },
 ];
+
+// ─── Zakonski obavezan identitet prodavca (ZZP CG čl. 30) ────────────────────
+const MERCHANT = {
+  name:    "Kotor City Walls d.o.o.",
+  pib:     "03123456",
+  address: "Stari grad bb, 85330 Kotor, Crna Gora",
+  email:   "support@kotorwalls.com",
+};
+
+const LEGAL_FOOTER_I18N = {
+  en: {
+    priceNote: "All prices in EUR. VAT included where applicable.",
+    withdrawNote: "Dated entry tickets are exempt from the 14-day right of withdrawal (EU Dir. 2011/83/EU art. 16(l)). Refund policy applies in case of force majeure or venue closure.",
+    sellerLabel: "Seller",
+    taxId: "Tax ID",
+  },
+  me: {
+    priceNote: "Cijene u EUR. PDV uračunat gdje je primjenjivo.",
+    withdrawNote: "Za karte vezane za određeni datum ulaska ne važi 14-dnevno pravo odustanka (čl. 116 st. 1 t. 12 Zakona o zaštiti potrošača CG). Povrat u slučaju više sile ili zatvaranja lokacije po Politici refundacije.",
+    sellerLabel: "Prodavac",
+    taxId: "PIB",
+  },
+  de: {
+    priceNote: "Preise in EUR. MwSt. ggf. enthalten.",
+    withdrawNote: "Eintrittskarten mit festem Datum sind vom 14-tägigen Widerrufsrecht ausgenommen (EU-RL 2011/83/EU Art. 16 l). Bei höherer Gewalt oder Schließung gilt die Rückerstattungsrichtlinie.",
+    sellerLabel: "Verkäufer",
+    taxId: "Steuer-ID",
+  },
+  ru: {
+    priceNote: "Цены указаны в EUR. НДС включён, где применимо.",
+    withdrawNote: "К билетам на конкретную дату не применяется 14-дневное право отказа (Дир. ЕС 2011/83/EU, ст. 16(l)). При форс-мажоре — по Политике возврата.",
+    sellerLabel: "Продавец",
+    taxId: "ИНН",
+  },
+  zh: {
+    priceNote: "价格以欧元计价。适用时已含增值税。",
+    withdrawNote: "指定日期入场券不适用14天无条件退货权（欧盟指令 2011/83/EU 第16(l)条）。如遇不可抗力或景点关闭，按退款政策办理。",
+    sellerLabel: "卖方",
+    taxId: "税号",
+  },
+};
+
+function LegalFooter({ lang }) {
+  const L = LEGAL_FOOTER_I18N[lang] ?? LEGAL_FOOTER_I18N.en;
+  return (
+    <div style={{
+      background: C.bg, borderTop: `1px solid ${C.borderSoft}`,
+      padding: "12px 22px 14px",
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+      color: C.textSoft, fontSize: 11, lineHeight: 1.55, textAlign: "center",
+    }}>
+      <div style={{ color: C.textMuted, fontWeight: 600 }}>
+        {L.sellerLabel}: {MERCHANT.name} · {L.taxId} {MERCHANT.pib}
+      </div>
+      <div>{MERCHANT.address} · {MERCHANT.email}</div>
+      <div style={{ opacity: 0.85 }}>{L.priceNote}</div>
+      <div style={{ opacity: 0.75, maxWidth: 520 }}>{L.withdrawNote}</div>
+      <div style={{ marginTop: 2 }}>
+        <TermsLinks lang={lang} />
+      </div>
+    </div>
+  );
+}
 
 // ─── Primitivi ───────────────────────────────────────────────────────────────
 function PrimaryBtn({ onClick, children, disabled, full = true }) {
@@ -544,21 +602,8 @@ export default function KotorTicket() {
 
           </div>
 
-          {/* Footer */}
-          <div style={{
-            background: C.bg, borderTop: `1px solid ${C.borderSoft}`,
-            padding: "10px 22px",
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-            color: C.textSoft,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <span style={{ fontSize: 11 }}>{t.secured}</span>
-            </div>
-            <TermsLinks lang={lang} />
-          </div>
+          {/* Footer — zakonski obavezan identitet prodavca + info o cijenama */}
+          <LegalFooter lang={lang} />
         </div>
       </div>
     </div>

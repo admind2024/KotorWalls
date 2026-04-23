@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { rest } from "./supabaseClient.js";
+import { useState, useEffect, useMemo } from "react";
+import { rest, callEdge } from "./supabaseClient.js";
 
 // ─── Palette (Kotor grb — crvena + zlatna, na svijetloj podlozi) ──────────────
 const C = {
@@ -648,38 +648,338 @@ function CategoryModal({ row, onClose, onSaved }) {
   );
 }
 
+const fmtMoney = (n, cur = "EUR") => {
+  const v = Number(n ?? 0);
+  const sym = cur === "EUR" ? "€" : `${cur} `;
+  return `${sym}${v.toFixed(2)}`;
+};
+const fmtTime = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleString("sr-Latn", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+};
+const txStatusTone = (s) => ({
+  succeeded: "success", refunded: "warning", partially_refunded: "warning",
+  failed: "danger", pending: "info",
+}[s] ?? "neutral");
+
+function useTransactionsData() {
+  const [data, setData]     = useState({ transactions: [], refunds: [], stats: {} });
+  const [loading, setLoad]  = useState(true);
+  const [err, setErr]       = useState(null);
+
+  const load = async () => {
+    setLoad(true); setErr(null);
+    try {
+      const res = await callEdge("admin-transactions", { limit: 200 });
+      setData({
+        transactions: res.transactions ?? [],
+        refunds:      res.refunds ?? [],
+        stats:        res.stats ?? {},
+      });
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setLoad(false); }
+  };
+  useEffect(() => { load(); }, []);
+  return { ...data, loading, err, reload: load };
+}
+
 function Transactions() {
+  const { transactions, stats, loading, err, reload } = useTransactionsData();
+  const [query, setQuery]     = useState("");
+  const [refundTx, setRefundTx] = useState(null);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return transactions;
+    return transactions.filter(t =>
+      (t.stripe_pi_id ?? "").toLowerCase().includes(q) ||
+      (t.brand ?? "").toLowerCase().includes(q) ||
+      (t.last4 ?? "").includes(q) ||
+      (t.order?.customer_email ?? "").toLowerCase().includes(q) ||
+      (t.order?.customer_name ?? "").toLowerCase().includes(q)
+    );
+  }, [transactions, query]);
+
+  const refundedForTx = (t) =>
+    (t.refunds ?? [])
+      .filter(r => r.status !== "failed" && r.status !== "canceled")
+      .reduce((s, r) => s + Number(r.amount ?? 0), 0);
+
   return (
     <div>
       <SectionHead
         title="Transakcije"
-        sub="Plaćanja, refundacije, storniranja i chargeback-ovi"
+        sub="Plaćanja sinhronizovana sa Stripe-om — punidjelimično refundiraj klikom na red"
         actions={<>
-          <SearchBar />
-          <Btn variant="secondary" icon={I.filter} size="sm">Filter</Btn>
-          <Btn variant="secondary" icon={I.export} size="sm">Izvoz</Btn>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "7px 10px", border: `1px solid ${C.border}`,
+            borderRadius: 7, background: C.surface, minWidth: 240,
+          }}>
+            <span style={{ color: C.textFaint, display: "flex" }}><Ico d={I.search} size={15} /></span>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="pi_…, brand, last4, email…"
+              style={{ border: "none", outline: "none", fontSize: 13, color: C.text, fontFamily: "inherit", width: "100%", background: "transparent" }}
+            />
+          </div>
+          <Btn variant="secondary" icon={I.clock} size="sm" onClick={reload}>Osvježi</Btn>
         </>}
       />
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 18 }}>
-        <Stat label="Uspješne (24h)" value="0" />
-        <Stat label="Refundirano"    value="0" />
-        <Stat label="Neuspjele"      value="0" />
-        <Stat label="Chargeback"     value="0" />
+        <Stat label="Uspješne (24h)" value={String(stats.succeeded_24h ?? 0)} />
+        <Stat label="Refundirano"    value={fmtMoney(stats.refunded_total ?? 0)} />
+        <Stat label="Neuspjele"      value={String(stats.failed ?? 0)} />
+        <Stat label="Chargeback"     value={String(stats.chargebacks ?? 0)} />
       </div>
-      <Empty icon={I.tx} title="Nema transakcija" sub="Ovdje će biti prikazana sva plaćanja, refundacije i chargeback-ovi." />
+
+      {err && <div style={{ ...card, padding: 14, marginBottom: 12, background: C.primarySoft, borderColor: "#F3CFCF", color: C.primaryDark, fontSize: 13 }}>{err}</div>}
+
+      {loading ? (
+        <div style={{ ...card, padding: 40, textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavam transakcije…</div>
+      ) : filtered.length === 0 ? (
+        <Empty icon={I.tx} title="Nema transakcija" sub="Ovdje će biti prikazana sva plaćanja, refundacije i chargeback-ovi." />
+      ) : (
+        <Table head={["Datum", "Kupac", "Kartica", "Iznos", "Refundirano", "Status", "Stripe PI", ""]}>
+          {filtered.map(t => {
+            const refSum = refundedForTx(t);
+            const orderStatus = t.order?.payment_status ?? t.status;
+            const canRefund = t.status === "succeeded" && refSum < Number(t.amount) - 0.01;
+            return (
+              <tr key={t.id}>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", color: C.textMuted, fontSize: 12 }}>{fmtTime(t.created_at)}</td>
+                <td style={td}>
+                  <div style={{ fontWeight: 600 }}>{t.order?.customer_name ?? "—"}</div>
+                  <div style={{ fontSize: 11, color: C.textSoft }}>{t.order?.customer_email ?? ""}</div>
+                </td>
+                <td style={{ ...td, fontSize: 12 }}>
+                  {t.brand ? (
+                    <div>
+                      <span style={{ textTransform: "capitalize", fontWeight: 600 }}>{t.brand}</span>
+                      {t.last4 && <span style={{ color: C.textSoft }}> ····{t.last4}</span>}
+                    </div>
+                  ) : <span style={{ color: C.textFaint }}>—</span>}
+                  {t.country && <div style={{ fontSize: 11, color: C.textFaint }}>{t.country}</div>}
+                </td>
+                <td style={{ ...td, fontWeight: 700 }}>{fmtMoney(t.amount, t.currency)}</td>
+                <td style={td}>
+                  {refSum > 0
+                    ? <span style={{ color: C.warning, fontWeight: 600 }}>{fmtMoney(refSum, t.currency)}</span>
+                    : <span style={{ color: C.textFaint }}>—</span>}
+                </td>
+                <td style={td}>
+                  <Badge tone={txStatusTone(orderStatus)}>
+                    {orderStatus === "partially_refunded" ? "djelimično" : orderStatus}
+                  </Badge>
+                </td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 11, color: C.textSoft }}>
+                  {t.stripe_pi_id ? `${t.stripe_pi_id.slice(0, 14)}…` : "—"}
+                </td>
+                <td style={{ ...td, textAlign: "right" }}>
+                  <Btn
+                    variant={canRefund ? "secondary" : "ghost"}
+                    size="sm"
+                    icon={I.refund}
+                    onClick={canRefund ? () => setRefundTx(t) : undefined}
+                  >
+                    Refund
+                  </Btn>
+                </td>
+              </tr>
+            );
+          })}
+        </Table>
+      )}
+
+      {refundTx && (
+        <RefundModal
+          tx={refundTx}
+          alreadyRefunded={refundedForTx(refundTx)}
+          onClose={() => setRefundTx(null)}
+          onDone={() => { setRefundTx(null); reload(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+const REFUND_REASONS = [
+  { v: "requested_by_customer", label: "Na zahtjev kupca" },
+  { v: "duplicate",             label: "Dupli plaćeno" },
+  { v: "fraudulent",            label: "Prevara / neovlašteno" },
+  { v: "custom",                label: "Drugo (upiši razlog)" },
+];
+
+function RefundModal({ tx, alreadyRefunded, onClose, onDone }) {
+  const txAmount = Number(tx.amount);
+  const maxRefund = Math.max(0, Number((txAmount - (alreadyRefunded ?? 0)).toFixed(2)));
+  const [amount, setAmount]   = useState(maxRefund.toFixed(2));
+  const [reason, setReason]   = useState("requested_by_customer");
+  const [note, setNote]       = useState("");
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState(null);
+
+  const submit = async () => {
+    setErr(null);
+    const amt = Number(amount);
+    if (!(amt > 0) || amt > maxRefund + 0.001) {
+      setErr(`Iznos mora biti između 0.01 i ${maxRefund.toFixed(2)}`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await callEdge("admin-refund", {
+        transaction_id: tx.id,
+        amount:         amt,
+        reason:         reason === "custom" ? (note || "other") : reason,
+        note:           note || null,
+      });
+      if (res?.error) throw new Error(res.error);
+      onDone();
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setSaving(false); }
+  };
+
+  const field = { fontSize: 13, color: C.textMuted, fontWeight: 500, marginBottom: 5, display: "block" };
+  const input = {
+    width: "100%", padding: "9px 11px", borderRadius: 7,
+    border: `1px solid ${C.border}`, fontSize: 13, color: C.text,
+    fontFamily: "inherit", outline: "none", background: C.surface,
+  };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(26,31,43,0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000, padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        ...card, padding: 24, width: "100%", maxWidth: 480,
+        boxShadow: "0 12px 48px rgba(26,31,43,0.25)",
+      }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 4 }}>Refund transakcije</div>
+        <div style={{ fontSize: 12, color: C.textSoft, marginBottom: 16, fontFamily: "ui-monospace, monospace" }}>
+          {tx.stripe_pi_id ?? tx.id}
+        </div>
+
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10,
+          padding: 12, background: C.bg, borderRadius: 8, marginBottom: 16,
+        }}>
+          <div>
+            <div style={{ fontSize: 11, color: C.textSoft, marginBottom: 2 }}>Originalno</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{fmtMoney(txAmount, tx.currency)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: C.textSoft, marginBottom: 2 }}>Već refundirano</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: alreadyRefunded > 0 ? C.warning : C.text }}>
+              {fmtMoney(alreadyRefunded ?? 0, tx.currency)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: C.textSoft, marginBottom: 2 }}>Maksimum</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.primaryDark }}>{fmtMoney(maxRefund, tx.currency)}</div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <label style={field}>Iznos refunda ({tx.currency})</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type="number" step="0.01" min="0.01" max={maxRefund}
+                style={{ ...input, flex: 1 }}
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+              />
+              <Btn variant="secondary" size="sm" onClick={() => setAmount(maxRefund.toFixed(2))}>Pun iznos</Btn>
+            </div>
+          </div>
+
+          <div>
+            <label style={field}>Razlog</label>
+            <select style={input} value={reason} onChange={e => setReason(e.target.value)}>
+              {REFUND_REASONS.map(r => <option key={r.v} value={r.v}>{r.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={field}>Napomena (interno)</label>
+            <textarea
+              style={{ ...input, minHeight: 60, resize: "vertical" }}
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder={reason === "custom" ? "Obavezno za razlog 'Drugo'…" : "Opciono — vidljivo u audit logu"}
+            />
+          </div>
+        </div>
+
+        {err && <div style={{ marginTop: 14, padding: 10, background: C.primarySoft, border: "1px solid #F3CFCF", borderRadius: 7, fontSize: 12, color: C.primaryDark }}>{err}</div>}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 18, justifyContent: "flex-end" }}>
+          <Btn variant="secondary" onClick={onClose}>Otkaži</Btn>
+          <Btn variant="danger" icon={I.refund} onClick={submit}>
+            {saving ? "Refundiram…" : `Refund ${fmtMoney(Number(amount || 0), tx.currency)}`}
+          </Btn>
+        </div>
+      </div>
     </div>
   );
 }
 
 function Refunds() {
+  const { transactions, refunds, loading, err, reload } = useTransactionsData();
+  const txById = useMemo(() => new Map(transactions.map(t => [t.id, t])), [transactions]);
+
   return (
     <div>
-      <SectionHead title="Refundacije i chargeback" sub="Ručno ili djelimično vraćanje sredstava + praćenje sporova" />
-      <div style={{ ...card, padding: 40, textAlign: "center" }}>
-        <div style={{ color: C.textSoft, marginBottom: 12 }}><Ico d={I.refund} size={32} /></div>
-        <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Nema otvorenih zahtjeva</div>
-        <div style={{ fontSize: 13, color: C.textSoft, marginTop: 6 }}>Pokreni refundaciju iz detalja transakcije.</div>
-      </div>
+      <SectionHead
+        title="Refundacije"
+        sub="Sve refundacije izvršene preko Stripe-a — kompletne i djelimične"
+        actions={<Btn variant="secondary" icon={I.clock} size="sm" onClick={reload}>Osvježi</Btn>}
+      />
+
+      {err && <div style={{ ...card, padding: 14, marginBottom: 12, background: C.primarySoft, borderColor: "#F3CFCF", color: C.primaryDark, fontSize: 13 }}>{err}</div>}
+
+      {loading ? (
+        <div style={{ ...card, padding: 40, textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavam…</div>
+      ) : refunds.length === 0 ? (
+        <div style={{ ...card, padding: 40, textAlign: "center" }}>
+          <div style={{ color: C.textSoft, marginBottom: 12 }}><Ico d={I.refund} size={32} /></div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Nema refundacija</div>
+          <div style={{ fontSize: 13, color: C.textSoft, marginTop: 6 }}>Pokreni refundaciju iz tabele transakcija.</div>
+        </div>
+      ) : (
+        <Table head={["Datum", "Kupac", "Iznos", "Razlog", "Status", "Stripe Refund", "Transakcija"]}>
+          {refunds.map(r => {
+            const tx = txById.get(r.transaction_id);
+            return (
+              <tr key={r.id}>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", color: C.textMuted, fontSize: 12 }}>{fmtTime(r.created_at)}</td>
+                <td style={td}>
+                  <div style={{ fontWeight: 600 }}>{tx?.order?.customer_name ?? "—"}</div>
+                  <div style={{ fontSize: 11, color: C.textSoft }}>{tx?.order?.customer_email ?? ""}</div>
+                </td>
+                <td style={{ ...td, fontWeight: 700, color: C.warning }}>{fmtMoney(r.amount, r.currency)}</td>
+                <td style={{ ...td, fontSize: 12 }}>{r.reason ?? "—"}</td>
+                <td style={td}>
+                  <Badge tone={r.status === "succeeded" ? "success" : r.status === "failed" ? "danger" : "info"}>
+                    {r.status}
+                  </Badge>
+                </td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 11, color: C.textSoft }}>
+                  {r.stripe_refund_id ? `${r.stripe_refund_id.slice(0, 16)}…` : "—"}
+                </td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 11, color: C.textSoft }}>
+                  {tx?.stripe_pi_id ? `${tx.stripe_pi_id.slice(0, 14)}…` : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </Table>
+      )}
     </div>
   );
 }
