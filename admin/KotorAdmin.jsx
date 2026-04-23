@@ -1134,24 +1134,231 @@ function Payments() {
   );
 }
 
+const ITEM_KIND_LABEL = {
+  card_bin:             "BIN kartice",
+  card_fingerprint:     "Otisak kartice",
+  email:                "Email adresa",
+  ip_address:           "IP adresa",
+  country:              "Zemlja (ISO 2)",
+  string:               "Tekst",
+  case_sensitive_string:"Tekst (case-sensitive)",
+  customer_id:          "Customer ID",
+  us_bank_account_fingerprint: "US bank fingerprint",
+  sepa_debit_fingerprint:      "SEPA fingerprint",
+};
+
 function Fraud() {
+  const [lists, setLists]     = useState([]);
+  const [loading, setLoad]    = useState(true);
+  const [err, setErr]         = useState(null);
+  const [activeList, setActive] = useState(null);
+  const [items, setItems]     = useState([]);
+  const [warnings, setWarns]  = useState([]);
+  const [newItem, setNewItem] = useState("");
+  const [adding, setAdding]   = useState(false);
+
+  const loadLists = async () => {
+    setLoad(true); setErr(null);
+    try {
+      const [lv, ef] = await Promise.all([
+        callEdge("admin-radar", { action: "list_value_lists" }),
+        callEdge("admin-radar", { action: "list_early_fraud", limit: 20 }),
+      ]);
+      setLists(lv.value_lists ?? []);
+      setWarns(ef.warnings ?? []);
+      if (!activeList && (lv.value_lists ?? []).length) {
+        setActive(lv.value_lists[0]);
+      }
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setLoad(false); }
+  };
+  useEffect(() => { loadLists(); }, []);
+
+  const loadItems = async (listId) => {
+    if (!listId) { setItems([]); return; }
+    try {
+      const res = await callEdge("admin-radar", { action: "list_items", value_list: listId });
+      setItems(res.items ?? []);
+    } catch (e) { setErr(String(e.message ?? e)); }
+  };
+  useEffect(() => { if (activeList) loadItems(activeList.id); }, [activeList?.id]);
+
+  const addItem = async () => {
+    if (!newItem.trim() || !activeList) return;
+    setAdding(true); setErr(null);
+    try {
+      await callEdge("admin-radar", { action: "add_item", value_list: activeList.id, value: newItem.trim() });
+      setNewItem("");
+      await loadItems(activeList.id);
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setAdding(false); }
+  };
+
+  const removeItem = async (item) => {
+    if (!confirm(`Obriši "${item.value}" iz liste "${activeList?.name}"?`)) return;
+    try {
+      await callEdge("admin-radar", { action: "delete_item", item_id: item.id });
+      await loadItems(activeList.id);
+    } catch (e) { setErr(String(e.message ?? e)); }
+  };
+
   return (
     <div>
-      <SectionHead title="Prevencija prevara" sub="ML risk score + admin pravila + audit log odluka" />
-      <div style={{ ...card, padding: 22 }}>
-        {[
-          ["Blokiraj preko 5 kupovina iste kartice / sat",          true],
-          ["Označi transakcije sa risk score > 80",                 true],
-          ["Zahtijevaj 3DS challenge za iznose preko €100",         true],
-          ["Blokiraj IP adrese sa više neuspjelih pokušaja",        true],
-          ["Auto-review za nove BIN brojeve",                       false],
-        ].map(([r, on]) => (
-          <div key={r} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${C.borderSoft}` }}>
-            <span style={{ fontSize: 13, color: C.text }}>{r}</span>
-            <Badge tone={on ? "success" : "neutral"}>{on ? "aktivno" : "pauzirano"}</Badge>
-          </div>
-        ))}
+      <SectionHead
+        title="Prevencija prevara"
+        sub="Radar value liste (CRUD iz admina), Early Fraud Warnings, risk score"
+        actions={<Btn variant="secondary" icon={I.clock} size="sm" onClick={loadLists}>Osvježi</Btn>}
+      />
+
+      {err && <div style={{ ...card, padding: 14, marginBottom: 12, background: C.primarySoft, borderColor: "#F3CFCF", color: C.primaryDark, fontSize: 13 }}>{err}</div>}
+
+      {/* Napomena o Radar pravilima */}
+      <div style={{
+        ...card, padding: 14, marginBottom: 16,
+        background: C.infoSoft, borderColor: "#B8DAFB",
+        fontSize: 12, color: C.textMuted, lineHeight: 1.5,
+      }}>
+        <b style={{ color: "#00509D" }}>Napomena:</b> Radar <i>pravila</i> (rules) se mijenjaju isključivo u Stripe Dashboard-u — public API ih ne izlaže. Odavde možeš upravljati <b>Value Lists</b> (blok/allow liste) i pregledati Early Fraud Warnings.
       </div>
+
+      {/* Value lists grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16, marginBottom: 20 }}>
+        <div style={{ ...card, overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.borderSoft}`, fontSize: 12, fontWeight: 700, color: C.textSoft, letterSpacing: 0.4, textTransform: "uppercase" }}>
+            Value lists ({lists.length})
+          </div>
+          {loading ? (
+            <div style={{ padding: 20, color: C.textSoft, fontSize: 13 }}>Učitavam…</div>
+          ) : lists.length === 0 ? (
+            <div style={{ padding: 20, color: C.textSoft, fontSize: 13 }}>Nema lista. Kreiraj ih u Stripe Dashboard → Radar.</div>
+          ) : lists.map(l => (
+            <button
+              key={l.id}
+              onClick={() => setActive(l)}
+              style={{
+                display: "block", width: "100%", padding: "11px 16px", textAlign: "left",
+                background: activeList?.id === l.id ? C.primarySoft : "transparent",
+                border: "none", borderBottom: `1px solid ${C.borderSoft}`,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: activeList?.id === l.id ? C.primaryDark : C.text }}>
+                {l.name}
+              </div>
+              <div style={{ fontSize: 11, color: C.textSoft, marginTop: 2 }}>
+                {ITEM_KIND_LABEL[l.item_type] ?? l.item_type} · {l.alias}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ ...card, padding: 18 }}>
+          {!activeList ? (
+            <div style={{ padding: 20, color: C.textSoft, fontSize: 13, textAlign: "center" }}>
+              Izaberi listu lijevo.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{activeList.name}</div>
+                  <div style={{ fontSize: 12, color: C.textSoft, marginTop: 2 }}>
+                    Tip: <b>{ITEM_KIND_LABEL[activeList.item_type] ?? activeList.item_type}</b> · Alias: <code>{activeList.alias}</code> · Stavki: {items.length}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <input
+                  value={newItem}
+                  onChange={e => setNewItem(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") addItem(); }}
+                  placeholder={
+                    activeList.item_type === "card_bin"   ? "npr. 411111" :
+                    activeList.item_type === "country"    ? "npr. NG" :
+                    activeList.item_type === "ip_address" ? "npr. 203.0.113.5" :
+                    activeList.item_type === "email"      ? "npr. bad@actor.com" :
+                    "vrijednost"
+                  }
+                  style={{
+                    flex: 1, padding: "9px 12px", borderRadius: 7,
+                    border: `1px solid ${C.border}`, fontSize: 13, fontFamily: "inherit",
+                    outline: "none",
+                  }}
+                />
+                <Btn icon={I.plus} size="sm" onClick={addItem}>
+                  {adding ? "Dodajem…" : "Dodaj"}
+                </Btn>
+              </div>
+
+              {items.length === 0 ? (
+                <div style={{ padding: 20, color: C.textSoft, fontSize: 13, textAlign: "center", border: `1px dashed ${C.border}`, borderRadius: 8 }}>
+                  Lista je prazna.
+                </div>
+              ) : (
+                <div style={{ border: `1px solid ${C.borderSoft}`, borderRadius: 8, maxHeight: 360, overflowY: "auto" }}>
+                  {items.map(it => (
+                    <div key={it.id} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "9px 14px", borderBottom: `1px solid ${C.borderSoft}`,
+                    }}>
+                      <div>
+                        <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 13, color: C.text, fontWeight: 600 }}>
+                          {it.value}
+                        </span>
+                        <span style={{ fontSize: 11, color: C.textFaint, marginLeft: 10 }}>
+                          {new Date(it.created * 1000).toLocaleDateString("sr-Latn")}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => removeItem(it)}
+                        style={{
+                          padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                          background: "transparent", color: C.danger,
+                          border: `1px solid ${C.border}`, borderRadius: 6,
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >Obriši</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Early fraud warnings */}
+      <SectionHead title="Early Fraud Warnings" sub="Rana upozorenja iz kartične šeme — preduzmi akciju da izbjegneš chargeback" />
+      {warnings.length === 0 ? (
+        <div style={{ ...card, padding: 30, textAlign: "center", color: C.textSoft, fontSize: 13 }}>
+          Nema aktuelnih upozorenja.
+        </div>
+      ) : (
+        <Table head={["Datum", "Razlog", "Charge", "Akcija preduzeta", "Uticaj na dispute"]}>
+          {warnings.map(w => (
+            <tr key={w.id}>
+              <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
+                {new Date(w.created * 1000).toLocaleString("sr-Latn", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </td>
+              <td style={td}>
+                <Badge tone="danger">{w.fraud_type}</Badge>
+              </td>
+              <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 11, color: C.textSoft }}>
+                {typeof w.charge === "string" ? w.charge.slice(0, 18) + "…" : w.charge?.id?.slice(0, 18) + "…"}
+              </td>
+              <td style={td}>
+                <Badge tone={w.actionable ? "warning" : "neutral"}>
+                  {w.actionable ? "potrebna" : "ne"}
+                </Badge>
+              </td>
+              <td style={td}>
+                {w.influences_dispute ? <Badge tone="danger">da</Badge> : <Badge tone="success">ne</Badge>}
+              </td>
+            </tr>
+          ))}
+        </Table>
+      )}
     </div>
   );
 }
