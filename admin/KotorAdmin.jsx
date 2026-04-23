@@ -1664,7 +1664,140 @@ const ACTION_TONE = {
   "charge.dispute.created":"danger",
   "charge.dispute.updated":"warning",
   "charge.dispute.closed": "neutral",
+  "retention.updated":     "info",
+  "retention.cleanup_run": "info",
 };
+
+// ─── Retention card — dijeli se u Audit log i Webhooks panelu ────────────────
+function RetentionCard({ kind /* "audit" | "webhook" */ }) {
+  const [data, setData]   = useState(null);
+  const [loading, setLoad] = useState(true);
+  const [err, setErr]     = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [running, setRun] = useState(false);
+  const [auditDays, setAuditDays]     = useState(30);
+  const [webhookDays, setWebhookDays] = useState(14);
+
+  const load = async () => {
+    setLoad(true); setErr(null);
+    try {
+      const res = await callEdge("admin-retention", { action: "get" });
+      if (res?.error) throw new Error(res.error);
+      setData(res);
+      setAuditDays(res.settings?.audit_noncritical_days ?? 30);
+      setWebhookDays(res.settings?.webhook_deliveries_days ?? 14);
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setLoad(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    setSaving(true); setErr(null);
+    try {
+      await callEdge("admin-retention", {
+        action: "save",
+        audit_noncritical_days:  Number(auditDays),
+        webhook_deliveries_days: Number(webhookDays),
+      });
+      await load();
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setSaving(false); }
+  };
+
+  const runNow = async () => {
+    if (!confirm("Pokrenuti čišćenje sada? Obrisaće se svi ne-kritični zapisi stariji od konfigurisanih dana.")) return;
+    setRun(true); setErr(null);
+    try {
+      const res = await callEdge("admin-retention", { action: "run" });
+      if (res?.error) throw new Error(res.error);
+      alert(`Obrisano: ${res.deleted?.audit_deleted ?? 0} audit zapisa, ${res.deleted?.webhook_deleted ?? 0} webhook zapisa.`);
+      await load();
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setRun(false); }
+  };
+
+  const isAudit = kind === "audit";
+  const days = isAudit ? auditDays : webhookDays;
+  const setDays = isAudit ? setAuditDays : setWebhookDays;
+  const preview = isAudit ? data?.preview?.audit_would_delete : data?.preview?.webhook_would_delete;
+  const critical = data?.preview?.audit_preserved_critical ?? 0;
+
+  return (
+    <div style={{ ...card, padding: 20, marginTop: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>
+            {isAudit ? "Retention — audit log" : "Retention — webhook deliveries"}
+          </div>
+          <div style={{ fontSize: 12, color: C.textSoft, marginTop: 3, lineHeight: 1.5, maxWidth: 520 }}>
+            {isAudit
+              ? <>Ne-kritični zapisi se brišu automatski posle X dana. <b>Kritične akcije</b> (payment.*, refund.*, charge.dispute.*, sve admin-akcije, email.ticket_failed) <b>se čuvaju trajno</b> — zbog poreskih i revizorskih obaveza.</>
+              : <>Webhook delivery log (payload + response) je debug podatak — briše se automatski posle X dana.</>
+            }
+          </div>
+        </div>
+        <Btn variant="secondary" size="sm" icon={I.clock} onClick={load}>Osvježi</Btn>
+      </div>
+
+      {err && <div style={{ padding: 10, marginBottom: 10, background: C.primarySoft, border: "1px solid #F3CFCF", borderRadius: 7, fontSize: 12, color: C.primaryDark }}>{err}</div>}
+
+      {loading && !data ? (
+        <div style={{ color: C.textSoft, fontSize: 13, padding: 12 }}>Učitavam…</div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 14, alignItems: "center", padding: "12px 0", borderTop: `1px solid ${C.borderSoft}`, borderBottom: `1px solid ${C.borderSoft}` }}>
+            <label style={{ fontSize: 13, color: C.textMuted }}>Čuvaj (dana)</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input
+                type="number"
+                min={isAudit ? 7 : 3}
+                max={isAudit ? 3650 : 180}
+                value={days}
+                onChange={e => setDays(e.target.value)}
+                style={{ width: 100, padding: "8px 10px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+              />
+              <span style={{ fontSize: 12, color: C.textSoft }}>
+                {isAudit ? "(min 7, max 3650)" : "(min 3, max 180)"}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ padding: "14px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ padding: 12, background: C.bg, borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: C.textSoft, fontWeight: 600, letterSpacing: 0.3, textTransform: "uppercase", marginBottom: 6 }}>
+                {isAudit ? "Bilo bi obrisano sad" : "Za brisanje sad"}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: preview > 0 ? C.warning : C.text }}>
+                {preview ?? 0}
+              </div>
+              <div style={{ fontSize: 11, color: C.textFaint, marginTop: 2 }}>zapisa</div>
+            </div>
+            {isAudit && (
+              <div style={{ padding: 12, background: C.successSoft, borderRadius: 8, border: "1px solid #BBECCB" }}>
+                <div style={{ fontSize: 11, color: "#0F7A3D", fontWeight: 600, letterSpacing: 0.3, textTransform: "uppercase", marginBottom: 6 }}>
+                  Zaštićeno (kritično)
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "#0F7A3D" }}>{critical}</div>
+                <div style={{ fontSize: 11, color: "#0F7A3D", marginTop: 2 }}>ne brišu se automatski</div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <Btn onClick={save}>{saving ? "Čuvam…" : "Sačuvaj"}</Btn>
+            <Btn variant="secondary" icon={I.close} onClick={runNow}>
+              {running ? "Čistim…" : "Pokreni čišćenje sada"}
+            </Btn>
+          </div>
+
+          <div style={{ marginTop: 14, padding: "10px 12px", background: C.infoSoft, border: "1px solid #B8DAFB", borderRadius: 8, fontSize: 11, color: "#00509D", lineHeight: 1.5 }}>
+            <b>Auto-scheduler:</b> čišćenje se ne izvršava automatski dok ne aktiviraš pg_cron u Supabase Dashboard → Database → Cron sa query-jem <code style={{ background: "rgba(0,80,157,0.08)", padding: "1px 5px", borderRadius: 3 }}>select kotorwalls_cleanup_logs();</code> (predloženo: svaki dan u 03:00).
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function AuditLog() {
   const [data, setData]       = useState({ rows: [], total: 0, actions: [] });
@@ -1734,7 +1867,10 @@ function AuditLog() {
       {loading && data.rows.length === 0 ? (
         <div style={{ ...card, padding: 40, textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavam…</div>
       ) : data.rows.length === 0 ? (
-        <Empty icon={I.audit} title="Audit log je prazan" sub="Svi događaji (kreiranja, izmjene, refundacije, greške) biće automatski zapisani." />
+        <>
+          <Empty icon={I.audit} title="Audit log je prazan" sub="Svi događaji (kreiranja, izmjene, refundacije, greške) biće automatski zapisani." />
+          <RetentionCard kind="audit" />
+        </>
       ) : (
         <div style={{ ...card, overflow: "hidden" }}>
           {data.rows.map(r => {
@@ -1781,6 +1917,8 @@ function AuditLog() {
           })}
         </div>
       )}
+
+      <RetentionCard kind="audit" />
     </div>
   );
 }
@@ -1854,6 +1992,8 @@ function Webhooks() {
           ))}
         </Table>
       )}
+
+      <RetentionCard kind="webhook" />
     </div>
   );
 }
