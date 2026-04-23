@@ -1412,32 +1412,244 @@ function Fiscal() {
   );
 }
 
+const REPORT_RANGES = [
+  { key: "7d",  label: "7 dana" },
+  { key: "30d", label: "30 dana" },
+  { key: "12m", label: "12 mjeseci" },
+  { key: "ytd", label: "Ova godina" },
+  { key: "all", label: "Sve" },
+];
+
+function downloadCsv(filename, rows) {
+  if (!rows?.length) { alert("Nema podataka za izvoz."); return; }
+  const keys = Object.keys(rows[0]);
+  const esc = v => {
+    const s = v == null ? "" : String(v);
+    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [keys.join(","), ...rows.map(r => keys.map(k => esc(r[k])).join(","))].join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function Reports() {
+  const [range, setRange] = useState("30d");
+  const [data, setData]   = useState(null);
+  const [loading, setLoad] = useState(true);
+  const [err, setErr]     = useState(null);
+
+  const load = async () => {
+    setLoad(true); setErr(null);
+    try {
+      const res = await callEdge("admin-reports", { range });
+      if (res?.error) throw new Error(res.error);
+      setData(res);
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setLoad(false); }
+  };
+  useEffect(() => { load(); }, [range]);
+
+  const s = data?.summary ?? {};
+  const revByDay  = data?.revenue_by_day  ?? [];
+  const refByDay  = data?.refunds_by_day  ?? [];
+  const byCat     = data?.sales_by_category ?? [];
+  const byChan    = data?.sales_by_channel  ?? [];
+  const byLang    = data?.sales_by_language ?? [];
+  const byCountry = data?.sales_by_country  ?? [];
+  const hourly    = data?.hourly_today    ?? [];
+  const maxBar    = Math.max(1, ...revByDay.map(x => x.sum));
+
+  const money = v => fmtMoney(v, s.currency ?? "EUR");
+
   return (
     <div>
-      <SectionHead title="Izvještaji" sub="Dnevni / mjesečni / godišnji · konsolidovano · ad-hoc izvoz" actions={<Btn icon={I.plus} size="sm">Novi izvještaj</Btn>} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
-        {[
-          ["Dnevni promet",      "Automatski svaki dan u 23:59", I.report],
-          ["Mjesečni pregled",   "1. u mjesecu — finansijski",   I.report],
-          ["Godišnji izvještaj", "Konsolidovano po kanalima",    I.report],
-          ["Ad-hoc izvoz",       "Excel / PDF — po filterima",   I.export],
-          ["Posjeta po satu",    "Kapacitet i prolazi",          I.clock],
-          ["Geografska analiza", "Po jeziku / zemlji",           I.channel],
-        ].map(([t, s, ic]) => (
-          <div key={t} style={{ ...card, padding: 18 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: C.primarySoft, color: C.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-              <Ico d={ic} size={16} />
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{t}</div>
-            <div style={{ fontSize: 12, color: C.textSoft, marginTop: 4, lineHeight: 1.5 }}>{s}</div>
-            <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
-              <Btn variant="secondary" size="sm" icon={I.export}>PDF</Btn>
-              <Btn variant="ghost" size="sm">Excel</Btn>
-            </div>
+      <SectionHead
+        title="Izvještaji"
+        sub="Prihod, prodaja, refund ratio — agregirano iz narudžbina, tiketa, transakcija i refunda"
+        actions={<>
+          <div style={{ display: "flex", gap: 4, padding: 3, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7 }}>
+            {REPORT_RANGES.map(r => (
+              <button key={r.key} onClick={() => setRange(r.key)} style={{
+                padding: "5px 11px", fontSize: 12, fontWeight: 600,
+                background: range === r.key ? C.primary : "transparent",
+                color: range === r.key ? "#fff" : C.textMuted,
+                border: "none", borderRadius: 5, cursor: "pointer", fontFamily: "inherit",
+              }}>{r.label}</button>
+            ))}
           </div>
-        ))}
+          <Btn variant="secondary" icon={I.clock} size="sm" onClick={load}>Osvježi</Btn>
+        </>}
+      />
+
+      {err && <div style={{ ...card, padding: 14, marginBottom: 12, background: C.primarySoft, borderColor: "#F3CFCF", color: C.primaryDark, fontSize: 13 }}>{err}</div>}
+
+      {/* KPI */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 18 }}>
+        <Stat label="Prihod (bruto)" value={money(s.revenue_gross ?? 0)} />
+        <Stat label="Prihod (neto)"  value={money(s.revenue_net ?? 0)} />
+        <Stat label="Narudžbine"     value={String(s.orders_count ?? 0)} />
+        <Stat label="Tiketi izdati"  value={String(s.tickets_count ?? 0)} />
+        <Stat label="Prosjek po narudžbini" value={money(s.avg_order_value ?? 0)} />
+        <Stat label="Refundirano"    value={money(s.refunds_total ?? 0)} />
+        <Stat label="Refund ratio"   value={`${s.refund_rate_pct ?? 0}%`} />
+        <Stat label="Uspješne tx"    value={`${s.tx_success_rate ?? 0}%`} />
       </div>
+
+      {loading && !data && (
+        <div style={{ ...card, padding: 40, textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavam…</div>
+      )}
+
+      {/* Prihod po danu */}
+      <div style={{ ...card, padding: 20, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Prihod po danu</div>
+            <div style={{ fontSize: 12, color: C.textSoft, marginTop: 2 }}>{revByDay.length} dana sa aktivnošću</div>
+          </div>
+          <Btn variant="secondary" icon={I.export} size="sm" onClick={() => downloadCsv(`kotor-revenue-${range}.csv`, revByDay)}>CSV</Btn>
+        </div>
+        {revByDay.length === 0 ? (
+          <div style={{ padding: 30, textAlign: "center", color: C.textFaint, fontSize: 13 }}>Nema podataka u izabranom periodu.</div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 140, overflowX: "auto" }}>
+            {revByDay.map(d => (
+              <div key={d.date} title={`${d.date}: ${money(d.sum)} · ${d.count} narudžbina`}
+                style={{ flex: "1 0 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 18 }}>
+                <div style={{
+                  width: "80%", height: `${(d.sum / maxBar) * 110 + 2}px`,
+                  background: `linear-gradient(180deg, ${C.primary}, ${C.primaryDark})`,
+                  borderRadius: "4px 4px 0 0",
+                }} />
+                <span style={{ fontSize: 9, color: C.textFaint, fontFamily: "ui-monospace, monospace", transform: "rotate(-45deg)", transformOrigin: "top left", whiteSpace: "nowrap" }}>
+                  {d.date.slice(5)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Breakdown tabele */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+        <BreakdownCard
+          title="Prodaja po kategoriji tiketa"
+          rows={byCat}
+          money={money}
+          onExport={() => downloadCsv(`kotor-category-${range}.csv`, byCat)}
+        />
+        <BreakdownCard
+          title="Prodaja po kanalu"
+          rows={byChan}
+          money={money}
+          onExport={() => downloadCsv(`kotor-channel-${range}.csv`, byChan)}
+        />
+        <BreakdownCard
+          title="Prodaja po jeziku kupca"
+          rows={byLang}
+          money={money}
+          onExport={() => downloadCsv(`kotor-language-${range}.csv`, byLang)}
+        />
+        <BreakdownCard
+          title="Geografska analiza (ISO zemlja)"
+          rows={byCountry}
+          money={money}
+          onExport={() => downloadCsv(`kotor-country-${range}.csv`, byCountry)}
+        />
+      </div>
+
+      {/* Današnji satni raspored */}
+      <div style={{ ...card, padding: 20, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Posjeta po satu — danas</div>
+            <div style={{ fontSize: 12, color: C.textSoft, marginTop: 2 }}>{hourly.reduce((s, h) => s + h.orders, 0)} narudžbina od ponoći</div>
+          </div>
+          <Btn variant="secondary" icon={I.export} size="sm" onClick={() => downloadCsv("kotor-hourly-today.csv", hourly)}>CSV</Btn>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 100 }}>
+          {hourly.map(h => {
+            const max = Math.max(1, ...hourly.map(x => x.orders));
+            return (
+              <div key={h.hour} title={`${h.hour}:00 — ${h.orders} narudžbina · ${money(h.revenue)}`}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <div style={{
+                  width: "100%", height: `${(h.orders / max) * 80 + (h.orders > 0 ? 2 : 0)}px`,
+                  background: h.orders > 0 ? C.gold : C.borderSoft,
+                  borderRadius: "3px 3px 0 0",
+                }} />
+                <span style={{ fontSize: 9, color: C.textFaint, fontFamily: "ui-monospace, monospace" }}>
+                  {String(h.hour).padStart(2, "0")}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Refundi */}
+      {refByDay.length > 0 && (
+        <div style={{ ...card, padding: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Refundi po danu</div>
+            <Btn variant="secondary" icon={I.export} size="sm" onClick={() => downloadCsv(`kotor-refunds-${range}.csv`, refByDay)}>CSV</Btn>
+          </div>
+          <Table head={["Datum", "Broj", "Iznos"]}>
+            {refByDay.map(r => (
+              <tr key={r.date}>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace" }}>{r.date}</td>
+                <td style={td}>{r.count}</td>
+                <td style={{ ...td, fontWeight: 700, color: C.warning }}>{money(r.sum)}</td>
+              </tr>
+            ))}
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BreakdownCard({ title, rows, money, onExport }) {
+  const total = rows.reduce((s, r) => s + r.sum, 0);
+  return (
+    <div style={{ ...card, padding: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{title}</div>
+        <Btn variant="ghost" icon={I.export} size="sm" onClick={onExport}>CSV</Btn>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ padding: 18, textAlign: "center", color: C.textFaint, fontSize: 13 }}>—</div>
+      ) : (
+        <div>
+          {rows.slice(0, 8).map(r => {
+            const pct = total > 0 ? (r.sum / total) * 100 : 0;
+            return (
+              <div key={r.key} style={{ padding: "9px 0", borderBottom: `1px solid ${C.borderSoft}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{r.key}</span>
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 700 }}>{money(r.sum)}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ flex: 1, height: 4, background: C.bg, borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: C.primary }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: C.textSoft, minWidth: 50, textAlign: "right" }}>
+                    {r.count} · {pct.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          {rows.length > 8 && (
+            <div style={{ fontSize: 12, color: C.textFaint, textAlign: "center", padding: "10px 0 0" }}>
+              +{rows.length - 8} više (CSV ima sve)
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
