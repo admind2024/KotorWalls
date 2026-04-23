@@ -12,16 +12,22 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const STRIPE_KEY       = Deno.env.get("STRIPE_SECRET_KEY_KOTOR")!;
+const STRIPE_KEY_LIVE  = Deno.env.get("STRIPE_SECRET_KEY_KOTOR") ?? "";
+const STRIPE_KEY_TEST  = Deno.env.get("STRIPE_SECRET_KEY_KOTOR_TEST") ?? "";
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE     = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SERVICE_FEE_PCT  = Number(Deno.env.get("SERVICE_FEE_PCT")  ?? "0");   // npr. 5
 const SERVICE_FEE_FLAT = Number(Deno.env.get("SERVICE_FEE_FLAT") ?? "0");   // npr. 0.30
 
-const stripe = new Stripe(STRIPE_KEY, { apiVersion: "2025-03-31.basil" });
+function makeStripe(mode?: string) {
+  const key = mode === "test" ? STRIPE_KEY_TEST : STRIPE_KEY_LIVE;
+  if (!key) throw new Error(`Stripe key for mode "${mode ?? "live"}" not configured`);
+  return new Stripe(key, { apiVersion: "2025-03-31.basil" });
+}
 
 interface LineItem { category_code: string; quantity: number; }
 interface Body {
+  mode?: "live" | "test";
   // KREIRANJE
   items?: LineItem[];
   customer_name?:    string;
@@ -51,6 +57,7 @@ Deno.serve(async (req) => {
 
   try {
     const body: Body = await req.json();
+    const stripe = makeStripe(body.mode);
 
     // ── UPDATE AMOUNT za BIN popust ────────────────────────────────────────
     if (body.action === "update_amount") {
@@ -169,6 +176,7 @@ Deno.serve(async (req) => {
       metadata: {
         order_id:         order.id,
         event_id:         "KOTOR WALLS",
+        stripe_mode:      body.mode === "test" ? "test" : "live",
         language:         body.language ?? "en",
         channel:          body.channel  ?? "web",
         subtotal:         subtotal.toFixed(2),

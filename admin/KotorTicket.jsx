@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import { callEdge, rest } from "./supabaseClient.js";
+import { callEdge, rest, getStripePublishableKey, getStripeMode } from "./supabaseClient.js";
 import { TermsLinks } from "./KotorLegal.jsx";
 
 // ─── Kotor paleta ────────────────────────────────────────────────────────────
@@ -13,7 +13,16 @@ const C = {
   text:        "#1A1F2B", textMuted:   "#4A5363", textSoft: "#6B7684", textFaint: "#9AA3B2",
 };
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// stripePromise se re-kreira po mode-u (test/live) — cache po mode-u
+const stripePromiseCache = {};
+function getStripePromise() {
+  const mode = getStripeMode();
+  if (!stripePromiseCache[mode]) {
+    const key = getStripePublishableKey();
+    stripePromiseCache[mode] = key ? loadStripe(key) : Promise.resolve(null);
+  }
+  return stripePromiseCache[mode];
+}
 
 // ─── Prevodi ─────────────────────────────────────────────────────────────────
 const T = {
@@ -603,7 +612,7 @@ export default function KotorTicket() {
                   <span style={{ fontSize: 22, fontWeight: 800, color: C.text }}>€{total.toFixed(2)}</span>
                 </div>
 
-                <Elements stripe={stripePromise} options={elementsOpts}>
+                <Elements stripe={getStripePromise()} options={elementsOpts}>
                   <PaymentForm t={t} piClientSecret={piClient} orderId={paidOrderId} onSuccess={(id) => { setPaidOrderId(id); setScreen("success"); }} />
                 </Elements>
 

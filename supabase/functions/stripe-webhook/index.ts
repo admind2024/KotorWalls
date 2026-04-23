@@ -7,15 +7,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@17.7.0?target=deno";
 
-const STRIPE_KEY      = Deno.env.get("STRIPE_SECRET_KEY_KOTOR")!;
-const WEBHOOK_SECRET  = Deno.env.get("KotorWalls_WEBHOOK")!;
-const SUPABASE_URL    = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE    = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const HMAC_SECRET     = Deno.env.get("HMAC_SECRET_KEY") ?? "ETK-9f38d1a2-cc49-4e3b-b182-7f94c2d9f6aa-2025";
-const EVENT_ID        = "KOTOR WALLS";
+const STRIPE_KEY_LIVE  = Deno.env.get("STRIPE_SECRET_KEY_KOTOR") ?? "";
+const STRIPE_KEY_TEST  = Deno.env.get("STRIPE_SECRET_KEY_KOTOR_TEST") ?? "";
+const WEBHOOK_LIVE     = Deno.env.get("KotorWalls_WEBHOOK") ?? "";
+const WEBHOOK_TEST     = Deno.env.get("KotorWalls_WEBHOOK_TEST") ?? "";
+const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE     = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const HMAC_SECRET      = Deno.env.get("HMAC_SECRET_KEY") ?? "ETK-9f38d1a2-cc49-4e3b-b182-7f94c2d9f6aa-2025";
+const EVENT_ID         = "KOTOR WALLS";
 
-const stripe   = new Stripe(STRIPE_KEY, { apiVersion: "2025-03-31.basil", httpClient: Stripe.createFetchHttpClient() });
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+const stripeLive = STRIPE_KEY_LIVE ? new Stripe(STRIPE_KEY_LIVE, { apiVersion: "2025-03-31.basil", httpClient: Stripe.createFetchHttpClient() }) : null;
+const stripeTest = STRIPE_KEY_TEST ? new Stripe(STRIPE_KEY_TEST, { apiVersion: "2025-03-31.basil", httpClient: Stripe.createFetchHttpClient() }) : null;
+const supabase   = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+// Stripe instance za API pozive (capture) — bira se po event.livemode
+function stripeFor(event: Stripe.Event): Stripe {
+  const s = event.livemode ? stripeLive : stripeTest;
+  if (!s) throw new Error(`No Stripe key configured for ${event.livemode ? "live" : "test"} mode`);
+  return s;
+}
 
 async function hmacSig(payload: string): Promise<string> {
   const enc = new TextEncoder();
@@ -40,21 +50,35 @@ Deno.serve(async (req) => {
   if (!sig) return new Response("missing signature", { status: 400 });
 
   const body = await req.text();
-  let event: Stripe.Event;
-  try {
-    event = await stripe.webhooks.constructEventAsync(body, sig, WEBHOOK_SECRET);
-  } catch (e) {
-    console.error("bad signature:", e);
-    return new Response(`bad signature: ${e}`, { status: 400 });
+  let event: Stripe.Event | null = null;
+  const errors: string[] = [];
+  // pokušaj live secret, pa test secret (isti URL za oba moda)
+  for (const [label, secret, s] of [
+    ["live", WEBHOOK_LIVE, stripeLive] as const,
+    ["test", WEBHOOK_TEST, stripeTest] as const,
+  ]) {
+    if (!secret || !s) continue;
+    try {
+      event = await s.webhooks.constructEventAsync(body, sig, secret);
+      break;
+    } catch (e) {
+      errors.push(`${label}: ${e}`);
+    }
   }
+  if (!event) {
+    console.error("bad signature:", errors.join(" | "));
+    return new Response(`bad signature`, { status: 400 });
+  }
+
+  const stripe = stripeFor(event);
 
   try {
     switch (event.type) {
       case "payment_intent.amount_capturable_updated":
-        await onAuthorized(event.data.object as Stripe.PaymentIntent);
+        await onAuthorized(stripe, event.data.object as Stripe.PaymentIntent);
         break;
       case "payment_intent.succeeded":
-        await onSucceeded(event.data.object as Stripe.PaymentIntent);
+        await onSucceeded(stripe, event.data.object as Stripe.PaymentIntent);
         break;
       case "charge.refunded":
         await onChargeRefunded(event.data.object as Stripe.Charge);
@@ -75,10 +99,10 @@ Deno.serve(async (req) => {
 });
 
 // ─── Autorizovano (manual capture) → capture ────────────────────────────────
-async function onAuthorized(pi: Stripe.PaymentIntent) {
+async function onAuthorized(stripe: Stripe, pi: Stripe.PaymentIntent) {
   if (pi.status !== "requires_capture") return;
 
-  console.log("auto-capture PI:", pi.id, "amount:", pi.amount);
+  console.log("auto-capture PI:", pi.id, "amount:", pi.amount, "livemode:", pi.livemode);
   try {
     await stripe.paymentIntents.capture(pi.id);
   } catch (e) {
@@ -92,7 +116,7 @@ async function onAuthorized(pi: Stripe.PaymentIntent) {
 }
 
 // ─── Plaćanje uspjelo → finalizacija, QR, tikete, transakcija ──────────────
-async function onSucceeded(pi: Stripe.PaymentIntent) {
+async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
   const orderId = pi.metadata?.order_id;
   if (!orderId) { console.warn("missing order_id in metadata", pi.id); return; }
 

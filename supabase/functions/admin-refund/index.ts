@@ -9,11 +9,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@17.7.0?target=deno";
 
-const STRIPE_KEY   = Deno.env.get("STRIPE_SECRET_KEY_KOTOR")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const STRIPE_KEY_LIVE = Deno.env.get("STRIPE_SECRET_KEY_KOTOR") ?? "";
+const STRIPE_KEY_TEST = Deno.env.get("STRIPE_SECRET_KEY_KOTOR_TEST") ?? "";
+const SUPABASE_URL    = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE    = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const stripe   = new Stripe(STRIPE_KEY, { apiVersion: "2025-03-31.basil", httpClient: Stripe.createFetchHttpClient() });
+function makeStripe(mode?: string) {
+  const key = mode === "test" ? STRIPE_KEY_TEST : STRIPE_KEY_LIVE;
+  if (!key) throw new Error(`Stripe key for mode "${mode ?? "live"}" not configured`);
+  return new Stripe(key, { apiVersion: "2025-03-31.basil", httpClient: Stripe.createFetchHttpClient() });
+}
+
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 const corsHeaders = {
@@ -29,8 +35,9 @@ Deno.serve(async (req) => {
   if (req.method !== "POST")    return json({ error: "method not allowed" }, 405);
 
   try {
-    const { transaction_id, amount, reason, note } = await req.json();
+    const { transaction_id, amount, reason, note, mode } = await req.json();
     if (!transaction_id) return json({ error: "transaction_id required" }, 400);
+    const stripe = makeStripe(mode);
 
     const { data: tx, error: txErr } = await supabase
       .from("kotorwalls_transactions")
