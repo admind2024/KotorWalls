@@ -36,6 +36,9 @@ const T = {
     required: "Required",
     fillAll: "Please fill in the required fields",
     termsAck: "By continuing you accept our terms of service.",
+    withdrawTitle: "Important notice on the right of withdrawal",
+    withdrawBody: "In accordance with Article 119, paragraph 1, item 12 of the Consumer Protection Act of Montenegro (Official Gazette No. 12/2026), for leisure services provided on a specific date you do not have the right to unilaterally withdraw from this distance contract after purchase. Tickets cannot be returned or exchanged at the customer's initiative, except in the case of cancellation or postponement of the event, or if ticket insurance has been activated.",
+    withdrawAck: "I understand that I do not have the right to unilaterally withdraw from this contract, as it concerns a leisure service on a specific date (Art. 119 para. 1 item 12 of the Consumer Protection Act, Official Gazette of Montenegro No. 12/2026).",
   },
   me: {
     title: "Kotorske zidine", subtitle: "Kupovina ulaznica",
@@ -56,6 +59,9 @@ const T = {
     required: "Obavezno",
     fillAll: "Popuni obavezna polja",
     termsAck: "Nastavkom prihvataš uslove korišćenja.",
+    withdrawTitle: "Važna napomena o pravu na raskid",
+    withdrawBody: "U skladu sa članom 119 stav 1 tačka 12 Zakona o zaštiti potrošača CG (Sl. list br. 12/2026), za usluge slobodnog vremena koje se pružaju određenog datuma nemate pravo na jednostrani raskid ugovora nakon kupovine. Karte se ne mogu vratiti ni zamijeniti na ličnu inicijativu, osim u slučaju otkazivanja/odlaganja događaja ili ako je aktivirano osiguranje ulaznica.",
+    withdrawAck: "Razumijem da nemam pravo na jednostrani raskid ovog ugovora jer se radi o usluzi slobodnog vremena određenog datuma (čl. 119 st. 1 t. 12 Zakona o zaštiti potrošača, Sl. list CG, br. 12/2026).",
   },
   de: {
     title: "Stadtmauern von Kotor", subtitle: "Eintrittskarten kaufen",
@@ -76,6 +82,9 @@ const T = {
     required: "Pflichtfeld",
     fillAll: "Bitte Pflichtfelder ausfüllen",
     termsAck: "Mit dem Fortfahren akzeptieren Sie unsere Bedingungen.",
+    withdrawTitle: "Wichtiger Hinweis zum Widerrufsrecht",
+    withdrawBody: "Gemäß Art. 119 Abs. 1 Ziff. 12 des Verbraucherschutzgesetzes Montenegros (Amtsblatt Nr. 12/2026) haben Sie bei Freizeitdienstleistungen, die zu einem bestimmten Datum erbracht werden, nach dem Kauf kein einseitiges Widerrufsrecht. Tickets können nicht auf eigene Initiative zurückgegeben oder umgetauscht werden, außer bei Absage/Verschiebung der Veranstaltung oder wenn eine Ticketversicherung aktiviert wurde.",
+    withdrawAck: "Ich verstehe, dass ich für diesen Vertrag kein einseitiges Widerrufsrecht habe, da es sich um eine Freizeitdienstleistung zu einem bestimmten Datum handelt (Art. 119 Abs. 1 Ziff. 12 VSchG, Amtsblatt Montenegro Nr. 12/2026).",
   },
   ru: {
     title: "Городские стены Котора", subtitle: "Купить входные билеты",
@@ -96,6 +105,9 @@ const T = {
     required: "Обязательно",
     fillAll: "Заполните обязательные поля",
     termsAck: "Продолжая, вы принимаете условия обслуживания.",
+    withdrawTitle: "Важное уведомление о праве на отказ",
+    withdrawBody: "В соответствии со ст. 119 ч. 1 п. 12 Закона о защите потребителей Черногории (Офиц. вестник № 12/2026), для услуг досуга, предоставляемых в определённую дату, после покупки вы не имеете права на односторонний отказ от договора. Билеты не подлежат возврату и обмену по инициативе покупателя, кроме случаев отмены/переноса мероприятия или активации страховки билетов.",
+    withdrawAck: "Я понимаю, что не имею права на односторонний отказ от настоящего договора, так как речь идёт об услуге досуга на определённую дату (ст. 119 ч. 1 п. 12 Закона о защите потребителей, Офиц. вестник ЧГ № 12/2026).",
   },
   zh: {
     title: "科托尔城墙", subtitle: "购买入场票",
@@ -116,6 +128,9 @@ const T = {
     required: "必填",
     fillAll: "请填写必填字段",
     termsAck: "继续即表示接受服务条款。",
+    withdrawTitle: "关于撤回权的重要提示",
+    withdrawBody: "根据黑山《消费者保护法》（黑山官方公报第 12/2026 号）第 119 条第 1 款第 12 项，对于在特定日期提供的休闲服务，您在购买后无权单方撤回合同。除非活动取消/延期或已激活门票保险，否则门票不可由消费者自行退换。",
+    withdrawAck: "我理解本合同涉及在特定日期提供的休闲服务，因此我无权单方撤回本合同（黑山《消费者保护法》官方公报第 12/2026 号第 119 条第 1 款第 12 项）。",
   },
 };
 
@@ -144,7 +159,7 @@ const LEGAL_FOOTER_I18N = {
   },
   me: {
     priceNote: "Cijene u EUR. PDV uračunat gdje je primjenjivo.",
-    withdrawNote: "Za karte vezane za određeni datum ulaska ne važi 14-dnevno pravo odustanka (čl. 116 st. 1 t. 12 Zakona o zaštiti potrošača CG). Povrat u slučaju više sile ili zatvaranja lokacije po Politici refundacije.",
+    withdrawNote: "Za karte vezane za određeni datum ulaska ne važi 14-dnevno pravo odustanka (čl. 119 st. 1 t. 12 Zakona o zaštiti potrošača CG, Sl. list br. 12/2026). Povrat u slučaju više sile ili zatvaranja lokacije po Politici refundacije.",
     sellerLabel: "Prodavac",
     taxId: "PIB",
   },
@@ -309,6 +324,7 @@ export default function KotorTicket() {
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState(null);
   const [accepted, setAccepted] = useState(false);
+  const [withdrawAck, setWithdrawAck] = useState(false);
 
   const t = T[lang];
 
@@ -336,7 +352,7 @@ export default function KotorTicket() {
 
   const startCheckout = async () => {
     if (!customer.name || !customer.email) { setErr(t.fillAll); return; }
-    if (!accepted) { setErr(t.fillAll); return; }
+    if (!accepted || !withdrawAck) { setErr(t.fillAll); return; }
     setCreating(true); setErr(null);
     try {
       const items = tickets.filter(tt => (qty[tt.id] ?? 0) > 0)
@@ -529,6 +545,32 @@ export default function KotorTicket() {
                   <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 8, background: C.primarySoft, border: "1px solid #F3CFCF", color: C.primaryDark, fontSize: 12, fontWeight: 500 }}>{err}</div>
                 )}
 
+                {/* Zakonski obavezna napomena o pravu na raskid — ZZP CG čl. 119 st. 1 t. 12 */}
+                <div style={{
+                  marginBottom: 12, padding: "12px 14px",
+                  background: C.goldSoft, border: "1px solid #EADD9C",
+                  borderRadius: 8, fontSize: 12, lineHeight: 1.5, color: C.text,
+                }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6, color: C.goldDark }}>{t.withdrawTitle}</div>
+                  <div style={{ color: C.textMuted }}>{t.withdrawBody}</div>
+                </div>
+
+                <label style={{
+                  display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer",
+                  padding: "10px 12px", marginBottom: 12,
+                  border: `1px solid ${withdrawAck ? C.gold : C.border}`,
+                  background: withdrawAck ? C.goldSoft : C.surface,
+                  borderRadius: 8, transition: "background 0.12s, border-color 0.12s",
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={withdrawAck}
+                    onChange={e => setWithdrawAck(e.target.checked)}
+                    style={{ marginTop: 2, accentColor: C.primary, width: 16, height: 16, flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: 12, lineHeight: 1.5, color: C.text, fontWeight: 500 }}>{t.withdrawAck}</span>
+                </label>
+
                 <div style={{ marginBottom: 14 }}>
                   <TermsLinks lang={lang} showCheckbox accepted={accepted} onAccept={setAccepted} />
                 </div>
@@ -536,7 +578,7 @@ export default function KotorTicket() {
                 <div style={{ display: "flex", gap: 8 }}>
                   <SecondaryBtn onClick={() => setScreen("buy")}>← {t.back}</SecondaryBtn>
                   <div style={{ flex: 2 }}>
-                    <PrimaryBtn onClick={startCheckout} disabled={creating || !accepted}>
+                    <PrimaryBtn onClick={startCheckout} disabled={creating || !accepted || !withdrawAck}>
                       {creating ? t.processing : t.continue}
                     </PrimaryBtn>
                   </div>

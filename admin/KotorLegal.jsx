@@ -114,10 +114,51 @@ Before initiating a chargeback with your bank, please contact us. Unjustified ch
 Nothing in this policy limits statutory consumer rights under the Law on Consumer Protection of Montenegro.
       `.trim(),
     },
+    distance: {
+      title: "Distance Sale Contract",
+      updated: "Last updated: 23 April 2026",
+      content: `
+## 1. Parties
+**Seller (Merchant):** Kotor City Walls d.o.o., Stari grad bb, 85330 Kotor, Montenegro. Tax ID (PIB): 03123456. Contact: support@kotorwalls.com.
+**Buyer (Consumer):** the natural or legal person completing the purchase through kotorwalls.com under the identity and contact details provided at checkout.
+
+## 2. Subject and conclusion of the contract
+This is a contract concluded at a distance, exclusively through means of distance communication (the website kotorwalls.com), without the simultaneous physical presence of the parties, within the meaning of the Consumer Protection Act of Montenegro (Official Gazette of Montenegro No. 12/2026). The subject of the contract is the issuance of a personalised electronic entrance ticket (QR code) for the Kotor City Walls, a leisure service provided on a specific date (timed entry).
+
+The contract is concluded at the moment the Buyer (i) selects tickets, (ii) enters personal data, (iii) confirms the mandatory acknowledgments of the right-of-withdrawal notice and the Terms of Use, Privacy Policy and Refund Policy, and (iv) successfully completes payment. The Seller will send a confirmation and the QR ticket(s) to the email address provided by the Buyer.
+
+## 3. Price, VAT and payment
+All prices are shown in EUR on the checkout page and include value added tax (VAT) where applicable. The total amount payable is displayed before payment is confirmed and includes the ticket price and any applicable service fee. Payment is processed by a regulated payment service provider in accordance with PSD2. No card data is stored on the Seller's servers.
+
+## 4. Duration and delivery
+This is a one-time contract. The electronic ticket is delivered to the Buyer's email address immediately upon successful payment and, at the latest, within 24 hours. The ticket is valid for the date and conditions stated at purchase.
+
+## 5. Right of withdrawal — IMPORTANT
+**The Buyer does not have the statutory 14-day right to unilaterally withdraw from this contract.** In accordance with Article 119, paragraph 1, item 12 of the Consumer Protection Act of Montenegro (Official Gazette No. 12/2026), the right of withdrawal does not apply to contracts for the provision of services related to leisure activities, where the contract provides for a specific date or period of performance. By completing the purchase and confirming the acknowledgment at checkout, the Buyer expressly accepts that this exemption applies.
+
+Exceptions in which a refund is possible:
+(a) cancellation or postponement of access to the City Walls by the Seller or the competent authority;
+(b) force majeure preventing the Seller from performing the service on the purchased date;
+(c) if the Buyer has purchased and activated ticket insurance, under the conditions of that insurance.
+
+## 6. Complaints and dispute resolution
+The Buyer may submit complaints in writing to support@kotorwalls.com. The Seller will respond within 8 days in accordance with the Consumer Protection Act of Montenegro. The Buyer also has the right to submit a complaint to the competent Market Inspection and, where applicable, to use alternative dispute resolution mechanisms.
+
+## 7. Personal data
+Personal data is processed in accordance with the Seller's Privacy Policy, the Law on Personal Data Protection of Montenegro, and, where applicable, the GDPR (Regulation (EU) 2016/679).
+
+## 8. Governing law and jurisdiction
+This contract is governed by the laws of Montenegro. Disputes arising out of or in connection with this contract fall within the jurisdiction of the competent court in Kotor. Nothing in this contract limits mandatory consumer rights granted by Montenegrin law.
+
+## 9. Language
+This distance sale contract is drawn up in the English language. Translations of the surrounding Terms, Privacy and Refund policies are provided for informational purposes; in case of discrepancy, the English version of this contract prevails.
+      `.trim(),
+    },
     labels: {
       terms: "Terms of Use",
       privacy: "Privacy Policy",
       refund: "Refund Policy",
+      distance: "Distance Contract",
       acceptPrefix: "By continuing you accept our",
       and: "and",
       close: "Close",
@@ -192,6 +233,7 @@ Ništa u ovoj politici ne ograničava zakonska prava potrošača prema Zakonu o 
       terms: "Uslovi korišćenja",
       privacy: "Politika privatnosti",
       refund: "Povrat ulaznica",
+      distance: "Ugovor na daljinu (EN)",
       acceptPrefix: "Nastavkom prihvatate",
       and: "i",
       close: "Zatvori",
@@ -265,6 +307,7 @@ Diese Richtlinie schränkt keine gesetzlichen Verbraucherrechte nach montenegrin
       terms: "Nutzungsbedingungen",
       privacy: "Datenschutz",
       refund: "Erstattung",
+      distance: "Fernabsatzvertrag (EN)",
       acceptPrefix: "Mit dem Fortfahren akzeptieren Sie",
       and: "und",
       close: "Schließen",
@@ -338,6 +381,7 @@ TLS 1.2+, шифрование хранимых данных, PCI DSS Level 1, �
       terms: "Условия",
       privacy: "Конфиденциальность",
       refund: "Возврат",
+      distance: "Договор дист. продажи (EN)",
       acceptPrefix: "Продолжая, вы принимаете",
       and: "и",
       close: "Закрыть",
@@ -411,6 +455,7 @@ TLS 1.2+ 传输加密，静态数据加密，PCI DSS Level 1 支付处理，基�
       terms: "使用条款",
       privacy: "隐私政策",
       refund: "退款政策",
+      distance: "远程销售合同 (EN)",
       acceptPrefix: "继续即表示您接受",
       and: "和",
       close: "关闭",
@@ -531,7 +576,7 @@ export function TermsLinks({ lang, showCheckbox, accepted, onAccept }) {
           <>
             <button type="button" onClick={open("terms")}  style={linkStyle}>{L.terms}</button>{" · "}
             <button type="button" onClick={open("privacy")} style={linkStyle}>{L.privacy}</button>{" · "}
-            <button type="button" onClick={open("refund")}  style={linkStyle}>{L.refund}</button>
+            <button type="button" onClick={open("refund")}  style={linkStyle}>{L.refund}</button>{L.distance ? <>{" · "}<button type="button" onClick={open("distance")} style={linkStyle}>{L.distance}</button></> : null}
           </>
         )}
       </div>
