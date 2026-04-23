@@ -199,7 +199,28 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
     },
   });
 
-  // TODO: pošalji email (Resend/SendGrid/Zepto) + fiskalni račun
+  // Pošalji email sa QR kartama — ne blokira webhook ako padne
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/send-ticket-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:  `Bearer ${SERVICE_ROLE}`,
+        apikey:         SERVICE_ROLE,
+      },
+      body: JSON.stringify({ order_id: orderId, reason: "purchase" }),
+    });
+    if (!r.ok) console.error("email send failed:", r.status, await r.text());
+  } catch (e) {
+    console.error("email send exception:", e);
+    await supabase.from("kotorwalls_audit_log").insert({
+      actor_type: "system", action: "email.ticket_failed",
+      entity: "order", entity_id: orderId,
+      metadata: { error: String(e) },
+    });
+  }
+
+  // TODO: fiskalni račun (CG ENU)
 }
 
 async function onChargeRefunded(charge: Stripe.Charge) {

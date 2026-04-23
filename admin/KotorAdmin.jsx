@@ -1654,22 +1654,131 @@ function BreakdownCard({ title, rows, money, onExport }) {
   );
 }
 
+const ACTION_TONE = {
+  "payment.succeeded":     "success",
+  "payment.capture_failed":"danger",
+  "refund.created":        "warning",
+  "refund.received":       "warning",
+  "email.ticket_sent":     "info",
+  "email.ticket_failed":   "danger",
+  "charge.dispute.created":"danger",
+  "charge.dispute.updated":"warning",
+  "charge.dispute.closed": "neutral",
+};
+
 function AuditLog() {
-  const rows = [];
+  const [data, setData]       = useState({ rows: [], total: 0, actions: [] });
+  const [loading, setLoad]    = useState(true);
+  const [err, setErr]         = useState(null);
+  const [actionF, setActionF] = useState("");
+  const [actorF, setActorF]   = useState("");
+  const [expanded, setExpanded] = useState({});
+
+  const load = async () => {
+    setLoad(true); setErr(null);
+    try {
+      const res = await callEdge("admin-audit", {
+        limit: 200,
+        ...(actionF ? { action: actionF } : {}),
+        ...(actorF  ? { actor_type: actorF } : {}),
+      });
+      if (res?.error) throw new Error(res.error);
+      setData({ rows: res.rows ?? [], total: res.total ?? 0, actions: res.actions ?? [] });
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setLoad(false); }
+  };
+  useEffect(() => { load(); }, [actionF, actorF]);
+
+  const exportCsv = () => {
+    const rows = data.rows.map(r => ({
+      timestamp: r.created_at,
+      actor_type: r.actor_type,
+      action: r.action,
+      entity: r.entity ?? "",
+      entity_id: r.entity_id ?? "",
+      metadata: r.metadata ? JSON.stringify(r.metadata) : "",
+      ip: r.ip ?? "",
+    }));
+    downloadCsv(`kotor-audit-${new Date().toISOString().slice(0,10)}.csv`, rows);
+  };
+
   return (
     <div>
-      <SectionHead title="Audit log" sub="Svaka izmjena i sistemski događaj — nepromjenjivo" actions={<Btn variant="secondary" icon={I.export} size="sm">Izvezi</Btn>} />
-      {rows.length === 0 ? (
+      <SectionHead
+        title="Audit log"
+        sub={`Svaka izmjena i sistemski događaj · ${data.total} zapisa`}
+        actions={<>
+          <select
+            value={actionF} onChange={e => setActionF(e.target.value)}
+            style={{ padding: "7px 10px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 12, fontFamily: "inherit", background: C.surface, color: C.text, outline: "none" }}
+          >
+            <option value="">Sve akcije</option>
+            {data.actions.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <select
+            value={actorF} onChange={e => setActorF(e.target.value)}
+            style={{ padding: "7px 10px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 12, fontFamily: "inherit", background: C.surface, color: C.text, outline: "none" }}
+          >
+            <option value="">Svi akteri</option>
+            <option value="system">system</option>
+            <option value="admin">admin</option>
+            <option value="user">user</option>
+          </select>
+          <Btn variant="secondary" icon={I.export} size="sm" onClick={exportCsv}>Izvezi CSV</Btn>
+          <Btn variant="secondary" icon={I.clock} size="sm" onClick={load}>Osvježi</Btn>
+        </>}
+      />
+
+      {err && <div style={{ ...card, padding: 14, marginBottom: 12, background: C.primarySoft, borderColor: "#F3CFCF", color: C.primaryDark, fontSize: 13 }}>{err}</div>}
+
+      {loading && data.rows.length === 0 ? (
+        <div style={{ ...card, padding: 40, textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavam…</div>
+      ) : data.rows.length === 0 ? (
         <Empty icon={I.audit} title="Audit log je prazan" sub="Svi događaji (kreiranja, izmjene, refundacije, greške) biće automatski zapisani." />
       ) : (
         <div style={{ ...card, overflow: "hidden" }}>
-          {rows.map((r, i) => (
-            <div key={i} style={{ display: "flex", padding: "12px 18px", borderBottom: i < rows.length - 1 ? `1px solid ${C.borderSoft}` : "none", gap: 14 }}>
-              <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 12, color: C.textSoft, width: 60 }}>{r.w}</div>
-              <div style={{ fontSize: 12, color: C.primaryDark, fontWeight: 600, width: 180 }}>{r.u}</div>
-              <div style={{ fontSize: 13, color: C.text, flex: 1 }}>{r.a}</div>
-            </div>
-          ))}
+          {data.rows.map(r => {
+            const isOpen = !!expanded[r.id];
+            const hasMeta = r.metadata && Object.keys(r.metadata).length > 0;
+            return (
+              <div key={r.id} style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                <div
+                  onClick={() => hasMeta && setExpanded(e => ({ ...e, [r.id]: !isOpen }))}
+                  style={{ display: "flex", padding: "11px 18px", gap: 14, cursor: hasMeta ? "pointer" : "default", alignItems: "center" }}
+                >
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, color: C.textSoft, width: 140, flexShrink: 0 }}>
+                    {new Date(r.created_at).toLocaleString("sr-Latn", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </div>
+                  <div style={{ width: 70, flexShrink: 0 }}>
+                    <Badge tone={r.actor_type === "admin" ? "brand" : r.actor_type === "system" ? "info" : "neutral"}>
+                      {r.actor_type}
+                    </Badge>
+                  </div>
+                  <div style={{ width: 210, flexShrink: 0 }}>
+                    <Badge tone={ACTION_TONE[r.action] ?? "neutral"}>{r.action}</Badge>
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textMuted, fontFamily: "ui-monospace, monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.entity && <span>{r.entity}</span>}
+                    {r.entity_id && <span style={{ color: C.textFaint }}> · {r.entity_id.slice(0, 8)}…</span>}
+                  </div>
+                  {hasMeta && (
+                    <div style={{ color: C.textFaint, fontSize: 11 }}>
+                      {isOpen ? <Ico d={I.up} size={12} /> : <Ico d={I.down} size={12} />}
+                    </div>
+                  )}
+                </div>
+                {isOpen && hasMeta && (
+                  <div style={{
+                    padding: "10px 18px 14px 172px", background: C.bg,
+                    fontFamily: "ui-monospace, monospace", fontSize: 11, color: C.textMuted,
+                    whiteSpace: "pre-wrap", wordBreak: "break-all",
+                  }}>
+                    {JSON.stringify(r.metadata, null, 2)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
