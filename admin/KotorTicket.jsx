@@ -269,7 +269,7 @@ const fieldInput = {
   transition: "border-color 0.12s",
 };
 
-// ─── Forma za plaćanje (unutar Stripe Elements) ─────────────────────────────
+// ─── Forma za plaćanje ──────────────────────────────────────────────────────
 function PaymentForm({ t, piClientSecret, orderId, onSuccess }) {
   const stripe = useStripe();
   const elements = useElements();

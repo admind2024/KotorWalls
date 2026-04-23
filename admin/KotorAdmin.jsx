@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { rest, callEdge } from "./supabaseClient.js";
+import { rest, callEdge, getStripeMode, setStripeMode } from "./supabaseClient.js";
 
 // ─── Palette (Kotor grb — crvena + zlatna, na svijetloj podlozi) ──────────────
 const C = {
@@ -710,7 +710,7 @@ function Transactions() {
     <div>
       <SectionHead
         title="Transakcije"
-        sub="Plaćanja sinhronizovana sa Stripe-om — punidjelimično refundiraj klikom na red"
+        sub="Plaćanja sinhronizovana sa procesorom plaćanja — puna i djelimična refundacija po redu"
         actions={<>
           <div style={{
             display: "flex", alignItems: "center", gap: 8,
@@ -743,7 +743,7 @@ function Transactions() {
       ) : filtered.length === 0 ? (
         <Empty icon={I.tx} title="Nema transakcija" sub="Ovdje će biti prikazana sva plaćanja, refundacije i chargeback-ovi." />
       ) : (
-        <Table head={["Datum", "Kupac", "Kartica", "Iznos", "Refundirano", "Status", "Stripe PI", ""]}>
+        <Table head={["Datum", "Kupac", "Kartica", "Iznos", "Refundirano", "Status", "Plaćanje ID", ""]}>
           {filtered.map(t => {
             const refSum = refundedForTx(t);
             const orderStatus = t.order?.payment_status ?? t.status;
@@ -937,7 +937,7 @@ function Refunds() {
     <div>
       <SectionHead
         title="Refundacije"
-        sub="Sve refundacije izvršene preko Stripe-a — kompletne i djelimične"
+        sub="Sve refundacije izvršene preko procesora plaćanja — kompletne i djelimične"
         actions={<Btn variant="secondary" icon={I.clock} size="sm" onClick={reload}>Osvježi</Btn>}
       />
 
@@ -952,7 +952,7 @@ function Refunds() {
           <div style={{ fontSize: 13, color: C.textSoft, marginTop: 6 }}>Pokreni refundaciju iz tabele transakcija.</div>
         </div>
       ) : (
-        <Table head={["Datum", "Kupac", "Iznos", "Razlog", "Status", "Stripe Refund", "Transakcija"]}>
+        <Table head={["Datum", "Kupac", "Iznos", "Razlog", "Status", "Refund ID", "Transakcija"]}>
           {refunds.map(r => {
             const tx = txById.get(r.transaction_id);
             return (
@@ -1342,11 +1342,96 @@ function UsersPanel() {
   );
 }
 
+function PaymentModeCard() {
+  const [mode, setMode] = useState(getStripeMode());
+
+  useEffect(() => {
+    const h = (e) => setMode(e.detail);
+    window.addEventListener("kw:mode-change", h);
+    return () => window.removeEventListener("kw:mode-change", h);
+  }, []);
+
+  const switchTo = (next) => {
+    if (next === mode) return;
+    const msg = next === "live"
+      ? "Prebaciti na PRODUKCIJU? Sljedeća plaćanja će koristiti stvarne kartice i stvarni novac."
+      : "Prebaciti na TEST mod? Sljedeća plaćanja neće naplaćivati stvarni novac (samo testne kartice).";
+    if (!confirm(msg)) return;
+    setStripeMode(next);
+    setMode(next);
+    setTimeout(() => window.location.reload(), 150);
+  };
+
+  const isTest = mode === "test";
+  const pillStyle = (active, activeColor, activeBg, activeBorder) => ({
+    padding: "10px 18px", fontSize: 13, fontWeight: 700,
+    borderRadius: 8, cursor: active ? "default" : "pointer",
+    background: active ? activeBg : C.surface,
+    color:      active ? activeColor : C.textMuted,
+    border:     `1.5px solid ${active ? activeBorder : C.border}`,
+    fontFamily: "inherit",
+    display: "inline-flex", alignItems: "center", gap: 8,
+    transition: "all 0.12s",
+  });
+
+  return (
+    <div style={{ ...card, padding: 20, gridColumn: "1 / -1" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Režim naplate</div>
+          <div style={{ fontSize: 12, color: C.textSoft, marginTop: 3 }}>
+            Produkcija naplaćuje stvarne kartice. Test mod koristi testne ključeve i ne dira stvarni novac.
+          </div>
+        </div>
+        <Badge tone={isTest ? "warning" : "success"}>
+          {isTest ? "TEST" : "PRODUKCIJA"}
+        </Badge>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <button
+          onClick={() => switchTo("live")}
+          disabled={!isTest}
+          style={pillStyle(!isTest, "#0F7A3D", C.successSoft, "#BBECCB")}
+        >
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: !isTest ? "#2F7D4F" : C.textFaint,
+          }} />
+          Produkcija
+        </button>
+        <button
+          onClick={() => switchTo("test")}
+          disabled={isTest}
+          style={pillStyle(isTest, "#8A5A00", C.warningSoft, "#F5DCA8")}
+        >
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: isTest ? "#C98015" : C.textFaint,
+          }} />
+          Test
+        </button>
+      </div>
+
+      {isTest && (
+        <div style={{
+          marginTop: 14, padding: "10px 12px", borderRadius: 8,
+          background: C.warningSoft, border: "1px solid #F5DCA8",
+          fontSize: 12, color: "#8A5A00", lineHeight: 1.5,
+        }}>
+          Sistem je u test modu. Testna kartica: <b>4242 4242 4242 4242</b> · CVC bilo koji · datum u budućnosti.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Settings() {
   return (
     <div>
       <SectionHead title="Podešavanja" sub="Organizacija, jezici, valute, obavještenja" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <PaymentModeCard />
         {[
           ["Organizacija",   [["Naziv", "Kotor City Walls d.o.o."], ["PIB", "03123456"], ["Valuta", "EUR"], ["Vremenska zona", "Europe/Podgorica"]]],
           ["Jezici",         [["Podržani", "EN · ME · DE · RU · ZH"], ["Podrazumijevani", "EN"]]],
