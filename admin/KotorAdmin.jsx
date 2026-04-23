@@ -1212,13 +1212,24 @@ function Fraud() {
 
       {err && <div style={{ ...card, padding: 14, marginBottom: 12, background: C.primarySoft, borderColor: "#F3CFCF", color: C.primaryDark, fontSize: 13 }}>{err}</div>}
 
-      {/* Napomena o Radar pravilima */}
+      {/* Bezbjednosna napomena — šta se može odavde, a šta zahtijeva Super admina */}
       <div style={{
         ...card, padding: 14, marginBottom: 16,
         background: C.infoSoft, borderColor: "#B8DAFB",
-        fontSize: 12, color: C.textMuted, lineHeight: 1.5,
+        fontSize: 12, color: C.textMuted, lineHeight: 1.6,
       }}>
-        <b style={{ color: "#00509D" }}>Napomena:</b> Radar <i>pravila</i> (rules) se mijenjaju isključivo u Stripe Dashboard-u — public API ih ne izlaže. Odavde možeš upravljati <b>Value Lists</b> (blok/allow liste) i pregledati Early Fraud Warnings.
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#00509D", marginBottom: 6, letterSpacing: 0.2, textTransform: "uppercase" }}>
+          Bezbjednosno ograničenje
+        </div>
+        <div>
+          Iz bezbjednosnih razloga, napredne politike sprečavanja prevara — <b>pravila odlučivanja</b> (if-then logika, risk score pragovi), <b>3-D Secure challenge politika</b>, <b>modeli uređaja i otisaka</b>, kao i testiranje / backtest pravila — mijenjaju se isključivo direktno na zaštićenom portalu procesora plaćanja, uz obaveznu dvofaktorsku autentikaciju i audit trag. Operatorima admina ovaj pristup nije omogućen.
+        </div>
+        <div style={{ marginTop: 8 }}>
+          Za izmjenu tih politika kontaktirajte <b>Super administratora</b> na <a href="mailto:support@kotorwalls.com" style={{ color: "#00509D", fontWeight: 600 }}>support@kotorwalls.com</a>.
+        </div>
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #B8DAFB", color: C.textSoft }}>
+          <b style={{ color: C.text }}>Iz admina možete:</b> upravljati Value Lists (blok/allow liste po BIN-u, zemlji, IP-u, email-u, otisku kartice), pregledati Early Fraud Warnings i risk score po transakciji, pokrenuti refund i zatvoriti review.
+        </div>
       </div>
 
       {/* Value lists grid */}
