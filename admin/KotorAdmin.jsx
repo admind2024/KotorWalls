@@ -562,8 +562,13 @@ function CategoryModal({ row, onClose, onSaved }) {
   const save = async () => {
     setErr(null); setSaving(true);
     try {
+      const cleanCode = code.trim().toLowerCase().replace(/\s+/g, "-");
+      if (!cleanCode) { setErr("Kod je obavezan (npr. adult, child, standard)."); setSaving(false); return; }
+      if (!(name || nameEn)) { setErr("Naziv je obavezan."); setSaving(false); return; }
+      if (!price || Number(price) <= 0) { setErr("Cijena mora biti veća od 0."); setSaving(false); return; }
+
       const payload = {
-        code: code.trim().toLowerCase(),
+        code: cleanCode,
         name_i18n: { me: name || nameEn, en: nameEn || name },
         sublabel_i18n: sublabel ? { me: sublabel, en: sublabel } : null,
         price: Number(price),

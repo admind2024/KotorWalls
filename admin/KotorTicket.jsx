@@ -269,7 +269,7 @@ const fieldInput = {
 };
 
 // ─── Forma za plaćanje ──────────────────────────────────────────────────────
-function PaymentForm({ t, piClientSecret, orderId, onSuccess }) {
+function PaymentForm({ t, orderId, customer, canSubmit, onSuccess }) {
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -278,11 +278,27 @@ function PaymentForm({ t, piClientSecret, orderId, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!stripe || !elements) return;
+    if (!canSubmit) { setErr(t.fillAll); return; }
+
     setProcessing(true); setErr(null);
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: `${window.location.origin}${window.location.pathname}#success?order=${orderId}`,
+        return_url: `${window.location.origin}/tickets?order=${orderId}`,
+        payment_method_data: {
+          billing_details: {
+            name:  customer?.name || undefined,
+            email: customer?.email || undefined,
+            phone: customer?.phone || undefined,
+            address: {
+              line1:       customer?.address || undefined,
+              city:        customer?.city || undefined,
+              postal_code: customer?.zip || undefined,
+              country:     customer?.country || undefined,
+              state:       undefined,
+            },
+          },
+        },
       },
       redirect: "if_required",
     });
@@ -296,7 +312,10 @@ function PaymentForm({ t, piClientSecret, orderId, onSuccess }) {
   return (
     <form onSubmit={handleSubmit}>
       <div style={{ padding: 2 }}>
-        <PaymentElement options={{ layout: "tabs" }} />
+        <PaymentElement options={{
+          layout: "tabs",
+          fields: { billingDetails: { address: "never", name: "never", email: "never", phone: "never" } },
+        }} />
       </div>
       {err && (
         <div style={{
@@ -306,7 +325,7 @@ function PaymentForm({ t, piClientSecret, orderId, onSuccess }) {
         }}>{err}</div>
       )}
       <div style={{ marginTop: 16 }}>
-        <PrimaryBtn disabled={!stripe || processing}>
+        <PrimaryBtn disabled={!stripe || processing || !canSubmit}>
           {processing ? t.processing : t.payNow}
         </PrimaryBtn>
       </div>
@@ -334,56 +353,45 @@ export default function KotorTicket() {
   const [accepted, setAccepted] = useState(false);
   const [withdrawAck, setWithdrawAck] = useState(false);
 
-  const [zipLookup, setZipLookup] = useState({ loading: false, found: null, error: null });
+  const [zipLookup, setZipLookup] = useState({ loading: false, matches: [], error: null });
 
   const t = T[lang];
 
-  // ─── ZIP → country (zippopotam.us, paralelno po regionu) ──────────────────
+  // ─── ZIP → grad + država (Nominatim kroz našu edge funkciju) ──────────────
   useEffect(() => {
     const zip = customer.zip?.trim();
     if (!zip || zip.length < 3) {
-      setZipLookup({ loading: false, found: null, error: null });
+      setZipLookup({ loading: false, matches: [], error: null });
       return;
     }
 
-    const controller = new AbortController();
-    const tryCountries = [
-      "ME", "HR", "BA", "RS", "SI", "AL", "MK", "XK",       // region
-      "DE", "AT", "IT", "FR", "ES", "NL", "BE", "CH",       // EU čest
-      "GB", "IE", "PL", "CZ", "HU", "SK", "RO", "BG",
-      "US", "CA", "AU",                                      // ostalo
-    ];
     let cancelled = false;
-
     const run = async () => {
-      setZipLookup({ loading: true, found: null, error: null });
-      for (const cc of tryCountries) {
+      setZipLookup({ loading: true, matches: [], error: null });
+      try {
+        const res = await callEdge("lookup-zip", { zip });
         if (cancelled) return;
-        try {
-          const r = await fetch(`https://api.zippopotam.us/${cc}/${encodeURIComponent(zip)}`, { signal: controller.signal });
-          if (!r.ok) continue;
-          const data = await r.json();
-          if (cancelled) return;
-          const place = data?.places?.[0];
-          const country = data?.["country abbreviation"] ?? cc;
-          const city    = place?.["place name"] ?? "";
-          setCustomer(c => ({
-            ...c,
-            country: country.toUpperCase(),
-            city:    c.city?.trim() ? c.city : city,
-          }));
-          setZipLookup({ loading: false, found: { country, city, countryName: data?.country }, error: null });
+        const matches = res?.matches ?? [];
+        if (matches.length === 0) {
+          setZipLookup({ loading: false, matches: [], error: "not_found" });
           return;
-        } catch (e) {
-          if (e.name === "AbortError") return;
         }
+        // Auto-fill sa prvim rezultatom
+        const first = matches[0];
+        setCustomer(c => ({ ...c, country: first.country_code, city: first.city || "" }));
+        setZipLookup({ loading: false, matches, error: null });
+      } catch (e) {
+        if (!cancelled) setZipLookup({ loading: false, matches: [], error: String(e.message ?? e) });
       }
-      if (!cancelled) setZipLookup({ loading: false, found: null, error: "not_found" });
     };
-
-    const tm = setTimeout(run, 400);  // debounce
-    return () => { cancelled = true; controller.abort(); clearTimeout(tm); };
+    const tm = setTimeout(run, 450);  // debounce
+    return () => { cancelled = true; clearTimeout(tm); };
   }, [customer.zip]);
+
+  // Ručni izbor alternativnog match-a (kad postoji više rezultata)
+  const pickMatch = (m) => {
+    setCustomer(c => ({ ...c, country: m.country_code, city: m.city || "" }));
+  };
 
   useEffect(() => {
     (async () => {
@@ -407,23 +415,13 @@ export default function KotorTicket() {
   const changeQty = (id, delta) =>
     setQty(q => ({ ...q, [id]: Math.max(0, Math.min(10, (q[id] ?? 0) + delta)) }));
 
-  const startCheckout = async () => {
-    if (!customer.name || !customer.email) { setErr(t.fillAll); return; }
-    if (!accepted || !withdrawAck) { setErr(t.fillAll); return; }
+  // Kreira PaymentIntent sa samo items — customer se šalje na submit preko Stripe billing_details
+  const goToPayment = async () => {
     setCreating(true); setErr(null);
     try {
       const items = tickets.filter(tt => (qty[tt.id] ?? 0) > 0)
                           .map(tt => ({ category_code: tt.id, quantity: qty[tt.id] }));
-      const res = await callEdge("create-checkout", {
-        items, language: lang, channel: "web",
-        customer_name:    customer.name,
-        customer_email:   customer.email,
-        customer_phone:   customer.phone,
-        customer_address: customer.address,
-        customer_city:    customer.city,
-        customer_zip:     customer.zip,
-        customer_country: customer.country,
-      });
+      const res = await callEdge("create-checkout", { items, language: lang, channel: "web" });
       if (!res.clientSecret) throw new Error(res.error ?? "No clientSecret");
       setPiClient(res.clientSecret);
       setPaidOrderId(res.orderId);
@@ -549,7 +547,9 @@ export default function KotorTicket() {
                       <span style={{ fontSize: 13, color: C.textSoft, fontWeight: 500 }}>{t.total}</span>
                       <span style={{ fontSize: 26, fontWeight: 800, color: C.text, letterSpacing: "-0.5px" }}>€{total.toFixed(2)}</span>
                     </div>
-                    <PrimaryBtn onClick={() => setScreen("info")}>{t.continue}</PrimaryBtn>
+                    <PrimaryBtn onClick={goToPayment} disabled={creating}>
+                      {creating ? t.processing : t.continue}
+                    </PrimaryBtn>
                   </div>
                 )}
 
@@ -559,105 +559,134 @@ export default function KotorTicket() {
               </>
             )}
 
-            {/* ── INFO ── */}
-            {screen === "info" && (
+            {/* ── PAY (sve u jednom koraku: podaci + plaćanje) ── */}
+            {screen === "pay" && piClient && elementsOpts && (
               <>
-                <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{t.details}</div>
-                  <div style={{ fontSize: 12, color: C.textSoft, marginTop: 4 }}>{t.detailsSub}</div>
+                {/* Total na vrhu */}
+                <div style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  background: C.goldSoft, border: "1px solid #EADD9C",
+                  borderRadius: 10, padding: "12px 14px", marginBottom: 18,
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.goldDark }}>{t.total}</span>
+                  <span style={{ fontSize: 22, fontWeight: 800, color: C.text }}>€{total.toFixed(2)}</span>
                 </div>
 
-                <div style={{ display: "grid", gap: 12 }}>
-                  <div>
-                    <label style={fieldLabel}>{t.name} *</label>
-                    <input style={fieldInput} value={customer.name} onChange={e => setCustomer(c => ({ ...c, name: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label style={fieldLabel}>{t.email} *</label>
-                    <input type="email" style={fieldInput} value={customer.email} onChange={e => setCustomer(c => ({ ...c, email: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label style={fieldLabel}>{t.phone}</label>
-                    <input style={fieldInput} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label style={fieldLabel}>{t.address}</label>
-                    <input style={fieldInput} value={customer.address} onChange={e => setCustomer(c => ({ ...c, address: e.target.value }))} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: 10 }}>
+                {/* Podaci kupca */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>{t.details}</div>
+
+                  <div style={{ display: "grid", gap: 12 }}>
                     <div>
-                      <label style={fieldLabel}>{t.city}</label>
-                      <input style={fieldInput} value={customer.city} autoComplete="address-level2" onChange={e => setCustomer(c => ({ ...c, city: e.target.value }))} />
+                      <label style={fieldLabel}>{t.name} *</label>
+                      <input style={fieldInput} value={customer.name} onChange={e => setCustomer(c => ({ ...c, name: e.target.value }))} autoComplete="name" />
                     </div>
                     <div>
+                      <label style={fieldLabel}>{t.email} *</label>
+                      <input type="email" style={fieldInput} value={customer.email} onChange={e => setCustomer(c => ({ ...c, email: e.target.value }))} autoComplete="email" />
+                    </div>
+                    <div>
+                      <label style={fieldLabel}>{t.phone}</label>
+                      <input style={fieldInput} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))} autoComplete="tel" />
+                    </div>
+
+                    {/* ZIP prvi — grad+država automatski */}
+                    <div>
                       <label style={fieldLabel}>
-                        {t.zip}
+                        {t.zip} *
                         {zipLookup.loading && <span style={{ color: C.textFaint, marginLeft: 6, fontWeight: 400 }}>…</span>}
-                      </label>
-                      <input
-                        style={{
-                          ...fieldInput,
-                          borderColor: zipLookup.found ? "#2F7D4F" : zipLookup.error ? "#F3CFCF" : C.border,
-                        }}
-                        value={customer.zip}
-                        inputMode="text"
-                        autoComplete="postal-code"
-                        onChange={e => setCustomer(c => ({ ...c, zip: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label style={fieldLabel}>
-                        {t.country}
-                        {zipLookup.found?.countryName && (
-                          <span style={{ color: "#2F7D4F", marginLeft: 6, fontWeight: 500, fontSize: 10 }}>
-                            ✓ {zipLookup.found.countryName}
-                          </span>
+                        {zipLookup.error === "not_found" && !zipLookup.loading && customer.zip && (
+                          <span style={{ color: C.primaryDark, marginLeft: 6, fontSize: 10, fontWeight: 500 }}>not found · unesi ručno</span>
                         )}
                       </label>
                       <input
                         style={{
                           ...fieldInput,
-                          borderColor: zipLookup.found ? "#2F7D4F" : C.border,
-                          background: zipLookup.found ? "#F4FAF6" : C.surface,
+                          borderColor: zipLookup.matches.length ? "#2F7D4F" : zipLookup.error ? "#F3CFCF" : C.border,
                         }}
-                        value={customer.country}
-                        maxLength={2}
-                        autoComplete="country"
-                        onChange={e => setCustomer(c => ({ ...c, country: e.target.value.toUpperCase() }))}
+                        value={customer.zip}
+                        inputMode="text"
+                        autoComplete="postal-code"
+                        placeholder="85330"
+                        onChange={e => setCustomer(c => ({ ...c, zip: e.target.value }))}
                       />
+                      {zipLookup.matches.length > 1 && (
+                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 5 }}>
+                          <span style={{ fontSize: 10, color: C.textSoft, alignSelf: "center" }}>other:</span>
+                          {zipLookup.matches.slice(1).map((m, i) => (
+                            <button key={i} type="button" onClick={() => pickMatch(m)} style={{
+                              padding: "3px 8px", fontSize: 10, fontWeight: 600,
+                              background: C.bg, border: `1px solid ${C.border}`, borderRadius: 999,
+                              color: C.textMuted, cursor: "pointer", fontFamily: "inherit",
+                            }}>{m.country_code} · {m.city || m.country}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 10 }}>
+                      <div>
+                        <label style={fieldLabel}>{t.city}</label>
+                        <input
+                          style={{
+                            ...fieldInput,
+                            background: zipLookup.matches.length ? C.bg : C.surface,
+                            color: zipLookup.matches.length ? C.textMuted : C.text,
+                            cursor: zipLookup.matches.length ? "default" : "text",
+                          }}
+                          value={customer.city}
+                          readOnly={zipLookup.matches.length > 0}
+                          onChange={e => setCustomer(c => ({ ...c, city: e.target.value }))}
+                          placeholder={zipLookup.loading ? "…" : "—"}
+                          autoComplete="address-level2"
+                        />
+                      </div>
+                      <div>
+                        <label style={fieldLabel}>
+                          {t.country}
+                          {zipLookup.matches[0] && <span style={{ color: "#2F7D4F", marginLeft: 6, fontWeight: 500, fontSize: 10 }}>✓</span>}
+                        </label>
+                        <input
+                          style={{
+                            ...fieldInput,
+                            background: zipLookup.matches.length ? C.bg : C.surface,
+                            color: zipLookup.matches.length ? C.textMuted : C.text,
+                            cursor: zipLookup.matches.length ? "default" : "text",
+                            borderColor: zipLookup.matches[0] ? "#2F7D4F" : C.border,
+                          }}
+                          value={customer.country}
+                          readOnly={zipLookup.matches.length > 0}
+                          onChange={e => setCustomer(c => ({ ...c, country: e.target.value.toUpperCase() }))}
+                          maxLength={2}
+                          placeholder="—"
+                          autoComplete="country"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={fieldLabel}>{t.address}</label>
+                      <input style={fieldInput} value={customer.address} onChange={e => setCustomer(c => ({ ...c, address: e.target.value }))} autoComplete="street-address" />
                     </div>
                   </div>
                 </div>
 
+                {/* ZZP CG napomena + checkbox */}
                 <div style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  background: C.primarySoft, border: "1px solid #F3CFCF",
-                  borderRadius: 10, padding: "13px 15px", margin: "18px 0 14px",
-                }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>{t.total}</span>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: C.text }}>€{total.toFixed(2)}</span>
-                </div>
-
-                {err && (
-                  <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 8, background: C.primarySoft, border: "1px solid #F3CFCF", color: C.primaryDark, fontSize: 12, fontWeight: 500 }}>{err}</div>
-                )}
-
-                {/* Zakonski obavezna napomena o pravu na raskid — ZZP CG čl. 119 st. 1 t. 12 */}
-                <div style={{
-                  marginBottom: 12, padding: "12px 14px",
+                  padding: "10px 12px", marginBottom: 10,
                   background: C.goldSoft, border: "1px solid #EADD9C",
-                  borderRadius: 8, fontSize: 12, lineHeight: 1.5, color: C.text,
+                  borderRadius: 8, fontSize: 11, lineHeight: 1.5, color: C.text,
                 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 6, color: C.goldDark }}>{t.withdrawTitle}</div>
+                  <div style={{ fontWeight: 700, marginBottom: 4, color: C.goldDark }}>{t.withdrawTitle}</div>
                   <div style={{ color: C.textMuted }}>{t.withdrawBody}</div>
                 </div>
 
                 <label style={{
                   display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer",
-                  padding: "10px 12px", marginBottom: 12,
+                  padding: "9px 11px", marginBottom: 10,
                   border: `1px solid ${withdrawAck ? C.gold : C.border}`,
                   background: withdrawAck ? C.goldSoft : C.surface,
-                  borderRadius: 8, transition: "background 0.12s, border-color 0.12s",
+                  borderRadius: 8,
                 }}>
                   <input
                     type="checkbox"
@@ -665,47 +694,28 @@ export default function KotorTicket() {
                     onChange={e => setWithdrawAck(e.target.checked)}
                     style={{ marginTop: 2, accentColor: C.primary, width: 16, height: 16, flexShrink: 0 }}
                   />
-                  <span style={{ fontSize: 12, lineHeight: 1.5, color: C.text, fontWeight: 500 }}>{t.withdrawAck}</span>
+                  <span style={{ fontSize: 11, lineHeight: 1.5, color: C.text, fontWeight: 500 }}>{t.withdrawAck}</span>
                 </label>
 
-                <div style={{ marginBottom: 14 }}>
+                <div style={{ marginBottom: 16 }}>
                   <TermsLinks lang={lang} showCheckbox accepted={accepted} onAccept={setAccepted} />
                 </div>
 
-                <div style={{ display: "flex", gap: 8 }}>
-                  <SecondaryBtn onClick={() => setScreen("buy")}>← {t.back}</SecondaryBtn>
-                  <div style={{ flex: 2 }}>
-                    <PrimaryBtn onClick={startCheckout} disabled={creating || !accepted || !withdrawAck}>
-                      {creating ? t.processing : t.continue}
-                    </PrimaryBtn>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── PAY ── */}
-            {screen === "pay" && piClient && elementsOpts && (
-              <>
-                <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{t.paySecure}</div>
-                  <div style={{ fontSize: 12, color: C.textSoft, marginTop: 4 }}>{customer.email}</div>
-                </div>
-
-                <div style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  background: C.goldSoft, border: "1px solid #EADD9C",
-                  borderRadius: 10, padding: "12px 14px", marginBottom: 16,
-                }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.goldDark }}>{t.total}</span>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: C.text }}>€{total.toFixed(2)}</span>
-                </div>
+                {/* Stripe Payment Element */}
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>{t.paySecure}</div>
 
                 <Elements stripe={getStripePromise()} options={elementsOpts}>
-                  <PaymentForm t={t} piClientSecret={piClient} orderId={paidOrderId} onSuccess={(id) => { setPaidOrderId(id); setScreen("success"); }} />
+                  <PaymentForm
+                    t={t}
+                    orderId={paidOrderId}
+                    customer={customer}
+                    canSubmit={!!(customer.name && customer.email && accepted && withdrawAck)}
+                    onSuccess={(id) => { setPaidOrderId(id); setScreen("success"); }}
+                  />
                 </Elements>
 
                 <div style={{ marginTop: 12 }}>
-                  <SecondaryBtn onClick={() => setScreen("info")}>← {t.back}</SecondaryBtn>
+                  <SecondaryBtn onClick={() => setScreen("buy")}>← {t.back}</SecondaryBtn>
                 </div>
               </>
             )}
