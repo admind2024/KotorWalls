@@ -119,7 +119,7 @@ Nothing in this policy limits statutory consumer rights under the Law on Consume
       updated: "Last updated: 23 April 2026",
       content: `
 ## 1. Parties
-**Seller (Merchant):** Kotor City Walls d.o.o., Stari grad bb, 85330 Kotor, Montenegro. Tax ID (PIB): 03123456. Contact: support@kotorwalls.com.
+**Seller (Merchant):** Opština Kotor, Stari grad bb, 85330 Kotor, Montenegro. Contact: support@kotorwalls.com.
 **Buyer (Consumer):** the natural or legal person completing the purchase through kotorwalls.com under the identity and contact details provided at checkout.
 
 ## 2. Subject and conclusion of the contract

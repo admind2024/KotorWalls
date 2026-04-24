@@ -2112,7 +2112,7 @@ function Settings() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <PaymentModeCard />
         {[
-          ["Organizacija",   [["Naziv", "Kotor City Walls d.o.o."], ["PIB", "03123456"], ["Valuta", "EUR"], ["Vremenska zona", "Europe/Podgorica"]]],
+          ["Organizacija",   [["Naziv", "Opština Kotor"], ["Valuta", "EUR"], ["Vremenska zona", "Europe/Podgorica"]]],
           ["Jezici",         [["Podržani", "EN · ME · DE · RU · ZH"], ["Podrazumijevani", "EN"]]],
           ["Email",          [["Pošiljalac", "tickets@kotorwalls.me"], ["Domen verifikacija", "SPF + DKIM"]]],
           ["Notifikacije",   [["Dnevni izvještaj", "22:00"], ["Alert sistema", "SMS + Email"]]],

@@ -153,8 +153,7 @@ const LANGS = [
 
 // ─── Zakonski obavezan identitet prodavca (ZZP CG čl. 30) ────────────────────
 const MERCHANT = {
-  name:    "Kotor City Walls d.o.o.",
-  pib:     "03123456",
+  name:    "Opština Kotor",
   address: "Stari grad bb, 85330 Kotor, Crna Gora",
   email:   "support@kotorwalls.com",
 };
@@ -202,7 +201,7 @@ function LegalFooter({ lang }) {
       color: C.textSoft, fontSize: 11, lineHeight: 1.55, textAlign: "center",
     }}>
       <div style={{ color: C.textMuted, fontWeight: 600 }}>
-        {L.sellerLabel}: {MERCHANT.name} · {L.taxId} {MERCHANT.pib}
+        {L.sellerLabel}: {MERCHANT.name}
       </div>
       <div>{MERCHANT.address} · {MERCHANT.email}</div>
       <div style={{ opacity: 0.85 }}>{L.priceNote}</div>
@@ -335,7 +334,56 @@ export default function KotorTicket() {
   const [accepted, setAccepted] = useState(false);
   const [withdrawAck, setWithdrawAck] = useState(false);
 
+  const [zipLookup, setZipLookup] = useState({ loading: false, found: null, error: null });
+
   const t = T[lang];
+
+  // ─── ZIP → country (zippopotam.us, paralelno po regionu) ──────────────────
+  useEffect(() => {
+    const zip = customer.zip?.trim();
+    if (!zip || zip.length < 3) {
+      setZipLookup({ loading: false, found: null, error: null });
+      return;
+    }
+
+    const controller = new AbortController();
+    const tryCountries = [
+      "ME", "HR", "BA", "RS", "SI", "AL", "MK", "XK",       // region
+      "DE", "AT", "IT", "FR", "ES", "NL", "BE", "CH",       // EU čest
+      "GB", "IE", "PL", "CZ", "HU", "SK", "RO", "BG",
+      "US", "CA", "AU",                                      // ostalo
+    ];
+    let cancelled = false;
+
+    const run = async () => {
+      setZipLookup({ loading: true, found: null, error: null });
+      for (const cc of tryCountries) {
+        if (cancelled) return;
+        try {
+          const r = await fetch(`https://api.zippopotam.us/${cc}/${encodeURIComponent(zip)}`, { signal: controller.signal });
+          if (!r.ok) continue;
+          const data = await r.json();
+          if (cancelled) return;
+          const place = data?.places?.[0];
+          const country = data?.["country abbreviation"] ?? cc;
+          const city    = place?.["place name"] ?? "";
+          setCustomer(c => ({
+            ...c,
+            country: country.toUpperCase(),
+            city:    c.city?.trim() ? c.city : city,
+          }));
+          setZipLookup({ loading: false, found: { country, city, countryName: data?.country }, error: null });
+          return;
+        } catch (e) {
+          if (e.name === "AbortError") return;
+        }
+      }
+      if (!cancelled) setZipLookup({ loading: false, found: null, error: "not_found" });
+    };
+
+    const tm = setTimeout(run, 400);  // debounce
+    return () => { cancelled = true; controller.abort(); clearTimeout(tm); };
+  }, [customer.zip]);
 
   useEffect(() => {
     (async () => {
@@ -410,9 +458,20 @@ export default function KotorTicket() {
     }}>
       <div style={{ width: "100%", maxWidth: 480 }}>
 
-        {/* Lang */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-          <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 9, background: C.surface, border: `1px solid ${C.border}` }}>
+        {/* Lang — sticky na vrhu */}
+        <div style={{
+          position: "sticky", top: 0, zIndex: 50,
+          display: "flex", justifyContent: "flex-end",
+          padding: "10px 0 12px",
+          marginBottom: 4,
+          background: `linear-gradient(to bottom, ${C.bg} 75%, rgba(247,248,250,0))`,
+          backdropFilter: "blur(6px)",
+        }}>
+          <div style={{
+            display: "flex", gap: 2, padding: 3, borderRadius: 9,
+            background: C.surface, border: `1px solid ${C.border}`,
+            boxShadow: "0 2px 8px rgba(26,31,43,0.06)",
+          }}>
             {LANGS.map(l => (
               <button key={l.code} onClick={() => setLang(l.code)} style={{
                 padding: "4px 10px", borderRadius: 6, border: "none",
@@ -528,15 +587,44 @@ export default function KotorTicket() {
                   <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: 10 }}>
                     <div>
                       <label style={fieldLabel}>{t.city}</label>
-                      <input style={fieldInput} value={customer.city} onChange={e => setCustomer(c => ({ ...c, city: e.target.value }))} />
+                      <input style={fieldInput} value={customer.city} autoComplete="address-level2" onChange={e => setCustomer(c => ({ ...c, city: e.target.value }))} />
                     </div>
                     <div>
-                      <label style={fieldLabel}>{t.zip}</label>
-                      <input style={fieldInput} value={customer.zip} onChange={e => setCustomer(c => ({ ...c, zip: e.target.value }))} />
+                      <label style={fieldLabel}>
+                        {t.zip}
+                        {zipLookup.loading && <span style={{ color: C.textFaint, marginLeft: 6, fontWeight: 400 }}>…</span>}
+                      </label>
+                      <input
+                        style={{
+                          ...fieldInput,
+                          borderColor: zipLookup.found ? "#2F7D4F" : zipLookup.error ? "#F3CFCF" : C.border,
+                        }}
+                        value={customer.zip}
+                        inputMode="text"
+                        autoComplete="postal-code"
+                        onChange={e => setCustomer(c => ({ ...c, zip: e.target.value }))}
+                      />
                     </div>
                     <div>
-                      <label style={fieldLabel}>{t.country}</label>
-                      <input style={fieldInput} value={customer.country} maxLength={2} onChange={e => setCustomer(c => ({ ...c, country: e.target.value.toUpperCase() }))} />
+                      <label style={fieldLabel}>
+                        {t.country}
+                        {zipLookup.found?.countryName && (
+                          <span style={{ color: "#2F7D4F", marginLeft: 6, fontWeight: 500, fontSize: 10 }}>
+                            ✓ {zipLookup.found.countryName}
+                          </span>
+                        )}
+                      </label>
+                      <input
+                        style={{
+                          ...fieldInput,
+                          borderColor: zipLookup.found ? "#2F7D4F" : C.border,
+                          background: zipLookup.found ? "#F4FAF6" : C.surface,
+                        }}
+                        value={customer.country}
+                        maxLength={2}
+                        autoComplete="country"
+                        onChange={e => setCustomer(c => ({ ...c, country: e.target.value.toUpperCase() }))}
+                      />
                     </div>
                   </div>
                 </div>
