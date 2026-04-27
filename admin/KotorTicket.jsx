@@ -34,8 +34,8 @@ const T = {
     back: "Back",
     details: "Your details",
     detailsSub: "We'll send your QR tickets to your email.",
-    name: "Full name", email: "Email", phone: "Phone (optional)",
-    address: "Address (optional)", city: "City", zip: "Postal code", country: "Country",
+    name: "Full name", email: "Email", phone: "Phone",
+    address: "Address", city: "City", zip: "Postal code", country: "Country",
     payNow: "Pay now", paySecure: "Secure payment",
     success: "Payment successful",
     successSub: "Your tickets have been sent to your email.",
@@ -57,8 +57,8 @@ const T = {
     back: "Nazad",
     details: "Tvoji podaci",
     detailsSub: "Poslaćemo QR karte na tvoju email adresu.",
-    name: "Ime i prezime", email: "Email", phone: "Telefon (opciono)",
-    address: "Adresa (opciono)", city: "Grad", zip: "Poštanski broj", country: "Država",
+    name: "Ime i prezime", email: "Email", phone: "Telefon",
+    address: "Adresa", city: "Grad", zip: "Poštanski broj", country: "Država",
     payNow: "Plati sada", paySecure: "Sigurno plaćanje",
     success: "Plaćanje uspješno",
     successSub: "Karte su poslate na tvoju email adresu.",
@@ -80,8 +80,8 @@ const T = {
     back: "Zurück",
     details: "Ihre Angaben",
     detailsSub: "Wir senden Ihre QR-Tickets an Ihre E-Mail.",
-    name: "Vollständiger Name", email: "E-Mail", phone: "Telefon (optional)",
-    address: "Adresse (optional)", city: "Stadt", zip: "PLZ", country: "Land",
+    name: "Vollständiger Name", email: "E-Mail", phone: "Telefon",
+    address: "Adresse", city: "Stadt", zip: "PLZ", country: "Land",
     payNow: "Jetzt bezahlen", paySecure: "Sichere Zahlung",
     success: "Zahlung erfolgreich",
     successSub: "Tickets an Ihre E-Mail gesendet.",
@@ -103,8 +103,8 @@ const T = {
     back: "Назад",
     details: "Ваши данные",
     detailsSub: "Билеты с QR-кодом придут на вашу почту.",
-    name: "Полное имя", email: "Эл. почта", phone: "Телефон (необязательно)",
-    address: "Адрес (необязательно)", city: "Город", zip: "Индекс", country: "Страна",
+    name: "Полное имя", email: "Эл. почта", phone: "Телефон",
+    address: "Адрес", city: "Город", zip: "Индекс", country: "Страна",
     payNow: "Оплатить", paySecure: "Безопасная оплата",
     success: "Оплата прошла",
     successSub: "Билеты отправлены на вашу почту.",
@@ -126,8 +126,8 @@ const T = {
     back: "返回",
     details: "您的信息",
     detailsSub: "我们会将带QR码的门票发到您的邮箱。",
-    name: "姓名", email: "邮箱", phone: "电话（可选）",
-    address: "地址（可选）", city: "城市", zip: "邮编", country: "国家",
+    name: "姓名", email: "邮箱", phone: "电话",
+    address: "地址", city: "城市", zip: "邮编", country: "国家",
     payNow: "立即支付", paySecure: "安全支付",
     success: "支付成功",
     successSub: "门票已发送至您的邮箱。",
@@ -315,15 +315,18 @@ function PaymentForm({ t, orderId, customer, canSubmit, onSuccess }) {
         return_url: `${window.location.origin}/tickets?order=${orderId}`,
         payment_method_data: {
           billing_details: {
-            name:  customer?.name || undefined,
-            email: customer?.email || undefined,
-            phone: customer?.phone || undefined,
+            name:  customer?.name  || "",
+            email: customer?.email || "",
+            phone: customer?.phone || "",
+            // Stripe traži da se SVA polja adrese proslijede (kao string, ne undefined)
+            // kad je fields.billingDetails.address === "never". Inače baca IntegrationError.
             address: {
-              line1:       customer?.address || undefined,
-              city:        customer?.city || undefined,
-              postal_code: customer?.zip || undefined,
-              country:     customer?.country || undefined,
-              state:       undefined,
+              line1:       customer?.address || "",
+              line2:       "",
+              city:        customer?.city    || "",
+              postal_code: customer?.zip     || "",
+              country:     customer?.country || "ME",
+              state:       "",
             },
           },
         },
@@ -385,14 +388,14 @@ export default function KotorTicket() {
 
   const t = T[lang];
 
-  // ─── ZIP → grad + država (Nominatim kroz našu edge funkciju) ──────────────
+  // ZIP → grad + država (Nominatim kroz našu edge funkciju). Auto-fill je samo
+  // sugestija — polja Grad i Država ostaju editabilna i kad lookup uspije.
   useEffect(() => {
     const zip = customer.zip?.trim();
     if (!zip || zip.length < 3) {
       setZipLookup({ loading: false, matches: [], error: null });
       return;
     }
-
     let cancelled = false;
     const run = async () => {
       setZipLookup({ loading: true, matches: [], error: null });
@@ -404,7 +407,6 @@ export default function KotorTicket() {
           setZipLookup({ loading: false, matches: [], error: "not_found" });
           return;
         }
-        // Auto-fill sa prvim rezultatom
         const first = matches[0];
         setCustomer(c => ({ ...c, country: first.country_code, city: first.city || "" }));
         setZipLookup({ loading: false, matches, error: null });
@@ -412,11 +414,11 @@ export default function KotorTicket() {
         if (!cancelled) setZipLookup({ loading: false, matches: [], error: String(e.message ?? e) });
       }
     };
-    const tm = setTimeout(run, 450);  // debounce
+    const tm = setTimeout(run, 450);
     return () => { cancelled = true; clearTimeout(tm); };
   }, [customer.zip]);
 
-  // Ručni izbor alternativnog match-a (kad postoji više rezultata)
+  // Ručni izbor alternativnog match-a (chip ispod ZIP-a kad ima više rezultata)
   const pickMatch = (m) => {
     setCustomer(c => ({ ...c, country: m.country_code, city: m.city || "" }));
   };
@@ -608,7 +610,7 @@ export default function KotorTicket() {
                     <input style={fieldInput} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))} autoComplete="tel" />
                   </div>
 
-                  {/* Adresa — puni red, prije ZIP/Grad/Država (kao etiketing inline forma) */}
+                  {/* Adresa — puni red (kao etiketing inline forma) */}
                   <div>
                     <label style={fieldLabel}>{t.address}</label>
                     <input
@@ -616,89 +618,47 @@ export default function KotorTicket() {
                       value={customer.address}
                       onChange={e => setCustomer(c => ({ ...c, address: e.target.value }))}
                       autoComplete="street-address"
-                      placeholder="—"
+                      placeholder="Ulica i broj"
                     />
                   </div>
 
-                  {/* ZIP + Grad + Država — jedan red. ZIP auto-popunjava grad i državu preko Nominatim-a. */}
+                  {/* ZIP + Grad + Država — jedan red, ručni unos (bez Nominatim autofill-a) */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 0.7fr", gap: 10 }}>
                     <div>
-                      <label style={fieldLabel}>
-                        {t.zip} *
-                        {zipLookup.loading && <span style={{ color: C.textFaint, marginLeft: 6, fontWeight: 400 }}>…</span>}
-                      </label>
+                      <label style={fieldLabel}>{t.zip} *</label>
                       <input
-                        style={{
-                          ...fieldInput,
-                          borderColor: zipLookup.matches.length ? "#2F7D4F" : zipLookup.error ? "#F3CFCF" : C.border,
-                        }}
+                        style={{ ...fieldInput, fontFamily: "ui-monospace, monospace", letterSpacing: "0.5px" }}
                         value={customer.zip}
-                        inputMode="text"
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={5}
                         autoComplete="postal-code"
                         placeholder="85330"
-                        onChange={e => setCustomer(c => ({ ...c, zip: e.target.value }))}
+                        onChange={e => setCustomer(c => ({ ...c, zip: e.target.value.replace(/\D/g, "") }))}
                       />
                     </div>
                     <div>
                       <label style={fieldLabel}>{t.city}</label>
                       <input
-                        style={{
-                          ...fieldInput,
-                          background: zipLookup.matches.length ? C.bg : C.surface,
-                          color: zipLookup.matches.length ? C.textMuted : C.text,
-                          cursor: zipLookup.matches.length ? "default" : "text",
-                        }}
+                        style={fieldInput}
                         value={customer.city}
-                        readOnly={zipLookup.matches.length > 0}
                         onChange={e => setCustomer(c => ({ ...c, city: e.target.value }))}
-                        placeholder={zipLookup.loading ? "…" : "—"}
+                        placeholder="Kotor"
                         autoComplete="address-level2"
                       />
                     </div>
                     <div>
-                      <label style={fieldLabel}>
-                        {t.country}
-                        {zipLookup.matches[0] && <span style={{ color: "#2F7D4F", marginLeft: 6, fontWeight: 500, fontSize: 10 }}>✓</span>}
-                      </label>
+                      <label style={fieldLabel}>{t.country}</label>
                       <input
-                        style={{
-                          ...fieldInput,
-                          background: zipLookup.matches.length ? C.bg : C.surface,
-                          color: zipLookup.matches.length ? C.textMuted : C.text,
-                          cursor: zipLookup.matches.length ? "default" : "text",
-                          borderColor: zipLookup.matches[0] ? "#2F7D4F" : C.border,
-                          textAlign: "center", letterSpacing: "0.5px",
-                        }}
+                        style={{ ...fieldInput, textAlign: "center", letterSpacing: "0.5px" }}
                         value={customer.country}
-                        readOnly={zipLookup.matches.length > 0}
                         onChange={e => setCustomer(c => ({ ...c, country: e.target.value.toUpperCase() }))}
                         maxLength={2}
-                        placeholder="—"
+                        placeholder="ME"
                         autoComplete="country"
                       />
                     </div>
                   </div>
-
-                  {/* "not found" hint + alternativni ZIP match-evi (ispod, da ne razbijaju 3-col layout) */}
-                  {(zipLookup.error === "not_found" && !zipLookup.loading && customer.zip) || zipLookup.matches.length > 1 ? (
-                    <div style={{ marginTop: -4, display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
-                      {zipLookup.error === "not_found" && !zipLookup.loading && customer.zip && (
-                        <span style={{ color: C.primaryDark, fontSize: 10, fontWeight: 500 }}>ZIP nije pronađen · ručni unos</span>
-                      )}
-                      {zipLookup.matches.length > 1 && (
-                        <>
-                          <span style={{ fontSize: 10, color: C.textSoft }}>drugi:</span>
-                          {zipLookup.matches.slice(1).map((m, i) => (
-                            <button key={i} type="button" onClick={() => pickMatch(m)} style={{
-                              padding: "3px 8px", fontSize: 10, fontWeight: 600,
-                              background: C.bg, border: `1px solid ${C.border}`, borderRadius: 999,
-                              color: C.textMuted, cursor: "pointer", fontFamily: "inherit",
-                            }}>{m.country_code} · {m.city || m.country}</button>
-                          ))}
-                        </>
-                      )}
-                    </div>
-                  ) : null}
                 </div>
 
                 {/* ZZP CG napomena */}
