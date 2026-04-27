@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/react";
 import KotorAdmin from "./KotorAdmin.jsx";
 import KotorTicket from "./KotorTicket.jsx";
 import KotorTicketsDisplay from "./KotorTicketsDisplay.jsx";
+import KotorContract from "./KotorContract.jsx";
 import { getStripeMode } from "./supabaseClient.js";
 
 // ─── Test mode banner ───────────────────────────────────────────────────────
@@ -143,18 +144,20 @@ function Switcher() {
 
   // Path-based + hash fallback (za dev sa #buy itd.)
   const clean = path.replace(/\/$/, "");
-  const isAdmin   = clean === "/admin"   || hash.startsWith("#admin");
-  const isTickets = clean === "/tickets" || clean === "/karte" || hash.startsWith("#tickets");
+  const isAdmin    = clean === "/admin"   || hash.startsWith("#admin");
+  const isTickets  = clean === "/tickets" || clean === "/karte" || hash.startsWith("#tickets");
+  const isContract = clean.startsWith("/ugovor-na-daljinu") || hash.startsWith("#ugovor-na-daljinu");
   // Default = buy widget
-  const isBuy     = !isAdmin && !isTickets;
+  const isBuy      = !isAdmin && !isTickets && !isContract;
 
   return (
     <>
       <TestModeBanner />
 
-      {isAdmin   && <AdminGate />}
-      {isTickets && <KotorTicketsDisplay />}
-      {isBuy     && <KotorTicket />}
+      {isAdmin    && <AdminGate />}
+      {isTickets  && <KotorTicketsDisplay />}
+      {isContract && <KotorContract />}
+      {isBuy      && <KotorTicket />}
 
       {/* Vercel Web Analytics — broji posjete i page views. Vidiš podatke
           u Vercel dashboard → Analytics tab. (Admin korisnik nema Vercel

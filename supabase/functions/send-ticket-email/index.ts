@@ -399,7 +399,7 @@ body,.dm-body{background-color:#1a1a2e!important}
       </td>
     </tr>
 
-    ${orderId ? `<!-- Distance Sales Contract (čl. 109 ZZP CG) — samo ako postoji order_id -->
+    ${orderId ? `<!-- Distance Sales Contract (čl. 109 ZZP CG) — frontend ruta na kotorwalls.com -->
     <tr>
       <td style="padding:12px 28px 0 28px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f9fafb;border:1px solid #d1d5db;border-radius:8px;">
@@ -407,7 +407,7 @@ body,.dm-body{background-color:#1a1a2e!important}
             <td style="padding:12px 14px;">
               <p style="margin:0 0 4px 0;font-size:12px;color:#111827;line-height:1.5;"><strong>📄 Distance Sales Contract (Art. 109 of the Act)</strong></p>
               <p style="margin:0 0 10px 0;font-size:11px;color:#4b5563;line-height:1.5;">The official contract document with all legally required elements is available at the link below. You can print it or save it as PDF from your browser.</p>
-              <a href="${esc(`${SUPABASE_URL}/functions/v1/distance-contract?order_id=${orderId}`)}" style="display:inline-block;padding:8px 14px;background:#1e3a8a;color:#ffffff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600;">Open distance sales contract →</a>
+              <a href="https://www.kotorwalls.com/ugovor-na-daljinu?order_id=${esc(orderId)}" style="display:inline-block;padding:8px 14px;background:#1e3a8a;color:#ffffff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600;">Open distance sales contract →</a>
             </td>
           </tr>
         </table>
