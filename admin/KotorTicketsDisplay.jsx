@@ -154,12 +154,11 @@ export default function KotorTicketsDisplay() {
             display: "flex", alignItems: "center", gap: 10,
             fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: "-0.2px",
           }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 7,
-              background: `linear-gradient(135deg, ${C.gold} 0%, ${C.primary} 100%)`,
-              color: "#fff", fontWeight: 800, fontSize: 11,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>KW</div>
+            <img
+              src="https://hvpytasddzeprgqkwlbu.supabase.co/storage/v1/object/public/razno/kotor.png"
+              alt="Kotor Walls"
+              style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", display: "block" }}
+            />
             Kotor Walls
           </div>
           <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 9, background: C.surface, border: `1px solid ${C.border}` }}>

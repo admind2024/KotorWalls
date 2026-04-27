@@ -77,8 +77,6 @@ const I = {
 // Svi podaci dolaze iz Supabase-a (projekat: etiketing-me).
 // Prazni nizovi = prazna stanja dok ne postoje podaci u bazi.
 const RECENT_TICKETS = [];
-const BAR   = [0,0,0,0,0,0,0,0,0,0,0,0];
-const BAR_L = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Avg","Sep","Okt","Nov","Dec"];
 const CATEGORIES = [];
 const CHANNELS = [
   { key: "web",     name: "Web",                 icon: I.channel, today: 0, pct: 0, live: true  },
@@ -92,7 +90,6 @@ const KIOSKS    = [];
 const GATES     = [];
 const BIN_RULES = [];
 const USERS     = [];
-const WEBHOOKS  = [];
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 const card = {
@@ -251,7 +248,6 @@ function Empty({ icon = I.ticket, title = "Nema podataka", sub = "Podaci će se 
 
 // ─── Panels ───────────────────────────────────────────────────────────────────
 function Overview() {
-  const maxBar = Math.max(...BAR);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <SectionHead
@@ -269,38 +265,6 @@ function Overview() {
         <Stat label="Ovaj mjesec"      value="0"    />
         <Stat label="Prosjek / dan"    value="0"    />
         <Stat label="Otvoreni sporovi" value="0"    />
-      </div>
-
-      <div style={{ ...card, padding: 22 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Mjesečne posjete</div>
-            <div style={{ fontSize: 12, color: C.textSoft, marginTop: 2 }}>2025 · Kotorske zidine</div>
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {["7D", "30D", "12M"].map((r, i) => (
-              <button key={r} style={{
-                padding: "5px 11px", fontSize: 12, fontWeight: 600,
-                background: i === 2 ? C.goldSoft : C.surface,
-                color: i === 2 ? C.goldDark : C.textMuted,
-                border: `1px solid ${i === 2 ? "#EADD9C" : C.border}`,
-                borderRadius: 6, cursor: "pointer",
-              }}>{r}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 140 }}>
-          {BAR.map((v, i) => (
-            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              <div style={{
-                width: "100%", height: `${(v / maxBar) * 120}px`,
-                background: i >= 10 ? `linear-gradient(180deg, ${C.primary}, ${C.primaryDark})` : C.goldSoft,
-                borderRadius: "6px 6px 0 0",
-              }} />
-              <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 500 }}>{BAR_L[i]}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Channels snapshot + Recent */}
@@ -1977,22 +1941,72 @@ function ApiDocs() {
 }
 
 function Webhooks() {
+  const [endpoints, setEndpoints] = useState([]);
+  const [deliveries, setDeliveries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+
+  const load = async () => {
+    setLoading(true); setErr(null);
+    try {
+      const res = await callEdge("admin-webhooks", { limit: 50 });
+      setEndpoints(res.endpoints ?? []);
+      setDeliveries(res.deliveries ?? []);
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const fmtTime = (iso) => {
+    if (!iso) return "—";
+    try { return new Date(iso).toLocaleString("sr-ME", { dateStyle: "short", timeStyle: "short" }); } catch { return iso; }
+  };
+
   return (
     <div>
-      <SectionHead title="Webhook-ovi" sub="Potpisani, autentikovani događaji · payment.* · refund.* · ticket.*" actions={<Btn icon={I.plus} size="sm">Novi endpoint</Btn>} />
-      {WEBHOOKS.length === 0 ? (
-        <Empty icon={I.webhook} title="Nema registrovanih endpointa" sub="Dodaj URL partnera (npr. fiskal, Booking, GYG) da automatski primaju događaje." />
+      <SectionHead
+        title="Webhook-ovi"
+        sub="Potpisani, autentikovani događaji · payment.* · refund.* · ticket.*"
+        actions={<Btn icon={I.refresh} size="sm" onClick={load}>Osvježi</Btn>}
+      />
+
+      {err && (
+        <div style={{ padding: "10px 14px", background: C.primarySoft, border: `1px solid ${C.border}`, borderRadius: 8, color: C.primaryDark, fontSize: 12, marginBottom: 12 }}>
+          {err}
+        </div>
+      )}
+
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "4px 0 8px" }}>Registrovani endpointi</div>
+      {loading ? (
+        <div style={{ padding: 24, textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavanje…</div>
+      ) : endpoints.length === 0 ? (
+        <Empty icon={I.webhook} title="Nema registrovanih endpointa" sub="Endpointi se kreiraju direktno u bazi (kotorwalls_webhooks). Partneri (fiskal, Booking, GYG) primaju događaje na registrovani URL." />
       ) : (
-        <Table head={["URL", "Događaji", "Status", ""]}>
-          {WEBHOOKS.map(w => (
+        <Table head={["URL", "Događaji", "Status", "Zadnja isporuka"]}>
+          {endpoints.map(w => (
             <tr key={w.id}>
-              <td style={{ ...td, fontFamily: "ui-monospace, monospace", color: C.primaryDark, fontWeight: 600 }}>{w.url}</td>
-              <td style={{ ...td, color: C.textMuted, fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{w.events}</td>
+              <td style={{ ...td, fontFamily: "ui-monospace, monospace", color: C.primaryDark, fontWeight: 600, fontSize: 12 }}>{w.url}</td>
+              <td style={{ ...td, color: C.textMuted, fontFamily: "ui-monospace, monospace", fontSize: 11 }}>{Array.isArray(w.events) ? w.events.join(", ") : w.events}</td>
               <td style={td}><Badge tone={w.status === "healthy" ? "success" : "danger"}>{w.status}</Badge></td>
-              <td style={{ ...td, textAlign: "right" }}>
-                <Btn variant="ghost" size="sm">Pošalji test</Btn>
-                <Btn variant="ghost" icon={I.edit} size="sm">Izmjeni</Btn>
-              </td>
+              <td style={{ ...td, color: C.textSoft, fontSize: 12 }}>{fmtTime(w.last_delivery_at)}</td>
+            </tr>
+          ))}
+        </Table>
+      )}
+
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "20px 0 8px" }}>Zadnje isporuke</div>
+      {loading ? null : deliveries.length === 0 ? (
+        <Empty icon={I.webhook} title="Nema isporuka" sub="Kad se pojavi prva isporuka (npr. payment.succeeded), prikazaće se ovdje sa response kodom i trajanjem." />
+      ) : (
+        <Table head={["Vrijeme", "Događaj", "Webhook", "HTTP", "Trajanje", "Status"]}>
+          {deliveries.map(d => (
+            <tr key={d.id}>
+              <td style={{ ...td, color: C.textSoft, fontSize: 12 }}>{fmtTime(d.created_at)}</td>
+              <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 12, color: C.text }}>{d.event_type}</td>
+              <td style={{ ...td, color: C.textSoft, fontSize: 11, fontFamily: "ui-monospace, monospace" }}>{(d.webhook_id || "").slice(0, 8)}</td>
+              <td style={{ ...td, fontFamily: "ui-monospace, monospace", color: d.response_code >= 200 && d.response_code < 300 ? "#15803D" : C.primaryDark, fontWeight: 600 }}>{d.response_code ?? "—"}</td>
+              <td style={{ ...td, color: C.textMuted, fontSize: 12 }}>{d.response_ms != null ? `${d.response_ms}ms` : "—"}</td>
+              <td style={td}><Badge tone={d.success ? "success" : "danger"}>{d.success ? "OK" : "FAIL"}</Badge></td>
             </tr>
           ))}
         </Table>
@@ -2209,13 +2223,11 @@ export default function KotorAdmin() {
         {/* Brand */}
         <div style={{ padding: "18px 18px 14px", borderBottom: `1px solid ${C.borderSoft}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 30, height: 30, borderRadius: 7,
-              background: `linear-gradient(135deg, ${C.gold} 0%, ${C.primary} 100%)`,
-              color: "#fff", fontWeight: 800, fontSize: 13,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              letterSpacing: "-0.3px",
-            }}>KW</div>
+            <img
+              src="https://hvpytasddzeprgqkwlbu.supabase.co/storage/v1/object/public/razno/kotor.png"
+              alt="Kotor Walls"
+              style={{ width: 32, height: 32, borderRadius: 7, objectFit: "contain", display: "block" }}
+            />
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.text, letterSpacing: "-0.2px" }}>Kotor Walls</div>
               <div style={{ fontSize: 11, color: C.textSoft }}>Admin · Produkcija</div>

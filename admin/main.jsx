@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
+import { Analytics } from "@vercel/analytics/react";
 import KotorAdmin from "./KotorAdmin.jsx";
 import KotorTicket from "./KotorTicket.jsx";
 import KotorTicketsDisplay from "./KotorTicketsDisplay.jsx";
@@ -68,12 +69,11 @@ function AdminLogin({ onOk }) {
         boxShadow: "0 4px 20px rgba(26,31,43,0.04)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 7,
-            background: "linear-gradient(135deg, #C9A227 0%, #B23A3A 100%)",
-            color: "#fff", fontWeight: 800, fontSize: 13,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>KW</div>
+          <img
+            src="https://hvpytasddzeprgqkwlbu.supabase.co/storage/v1/object/public/razno/kotor.png"
+            alt="Kotor Walls"
+            style={{ width: 36, height: 36, borderRadius: 7, objectFit: "contain", display: "block" }}
+          />
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#1A1F2B" }}>Kotor Walls</div>
             <div style={{ fontSize: 11, color: "#6B7684" }}>Admin prijava</div>
@@ -155,6 +155,12 @@ function Switcher() {
       {isAdmin   && <AdminGate />}
       {isTickets && <KotorTicketsDisplay />}
       {isBuy     && <KotorTicket />}
+
+      {/* Vercel Web Analytics — broji posjete i page views. Vidiš podatke
+          u Vercel dashboard → Analytics tab. (Admin korisnik nema Vercel
+          pristup, pa ćemo kasnije eventualno povući metrike preko Vercel
+          REST API-ja u kotor admin panel.) */}
+      <Analytics />
     </>
   );
 }

@@ -263,8 +263,8 @@ body,.dm-body{background-color:#1a1a2e!important}
       <td>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td width="34" height="34" style="background-color:#C9A227;border-radius:8px;" align="center">
-              <span style="color:#1a1a2e;font-size:16px;font-weight:800;line-height:34px;">K</span>
+            <td width="40" height="40" align="center" valign="middle">
+              <img src="https://hvpytasddzeprgqkwlbu.supabase.co/storage/v1/object/public/razno/kotor.png" alt="Kotor Walls" width="40" height="40" style="display:block;border-radius:6px;" />
             </td>
             <td style="padding-left:10px;">
               <span style="color:#ffffff;font-size:16px;font-weight:600;letter-spacing:-0.01em;">Kotor Walls</span>

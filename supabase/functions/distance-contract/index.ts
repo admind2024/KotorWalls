@@ -128,8 +128,8 @@ body{margin:0;background:#f7f8fa;font-family:'Inter',-apple-system,BlinkMacSyste
 .toolbar button:hover{background:#8e2a2a}
 .page{max-width:820px;margin:24px auto;background:#fff;padding:48px 56px;box-shadow:0 2px 20px rgba(26,31,43,0.06);border-radius:8px}
 .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1f2b;padding-bottom:18px;margin-bottom:28px}
-.head .logo{display:flex;align-items:center;gap:10px}
-.head .logo .k{width:36px;height:36px;background:#c9a227;color:#1a1f2b;font-weight:800;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.head .logo{display:flex;align-items:center;gap:12px}
+.head .logo img{width:48px;height:48px;border-radius:8px;display:block;object-fit:contain}
 .head .logo .name{font-weight:700;font-size:16px}
 .head .meta{text-align:right;font-size:11px;color:#6b7684}
 .head .meta .ref{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#1a1f2b;font-weight:600;margin-bottom:2px}
@@ -176,7 +176,7 @@ table.items tfoot td{background:#fbf2d6;font-weight:700;font-size:14px}
 
   <div class="head">
     <div class="logo">
-      <div class="k">K</div>
+      <img src="https://hvpytasddzeprgqkwlbu.supabase.co/storage/v1/object/public/razno/kotor.png" alt="Kotor Walls" />
       <div>
         <div class="name">Kotor Walls</div>
         <div style="font-size:11px;color:#6b7684">UNESCO World Heritage Site</div>
