@@ -248,33 +248,72 @@ function Empty({ icon = I.ticket, title = "Nema podataka", sub = "Podaci će se 
 
 // ─── Panels ───────────────────────────────────────────────────────────────────
 function Overview() {
+  const [reports, setReports] = useState(null);
+  const [recent,  setRecent]  = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+
+  const load = async () => {
+    setLoading(true); setErr(null);
+    try {
+      const [rep, tx] = await Promise.all([
+        callEdge("admin-reports",      { range: "30d" }),
+        callEdge("admin-transactions", { limit: 8 }),
+      ]);
+      setReports(rep);
+      setRecent(tx?.rows ?? tx?.transactions ?? []);
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  // KPI iz reports
+  const summary = reports?.summary ?? {};
+  const hourly  = reports?.hourly_today ?? [];
+  const todayOrders  = hourly.reduce((s, h) => s + (h.orders  ?? 0), 0);
+  const todayRevenue = hourly.reduce((s, h) => s + (h.revenue ?? 0), 0);
+  const monthOrders  = summary.orders_count ?? 0;
+  const monthRevenue = summary.revenue_gross ?? 0;
+  const avgPerDay    = Math.round((monthOrders / 30) * 10) / 10;
+
+  // Channels iz sales_by_channel — mapiraj na CHANNELS metadata
+  const channelMap = new Map((reports?.sales_by_channel ?? []).map(c => [c.key, c]));
+  const channelsLive = CHANNELS.map(c => {
+    const r = channelMap.get(c.key);
+    return { ...c, today: r?.count ?? 0, sum: r?.sum ?? 0 };
+  });
+  const maxToday = Math.max(1, ...channelsLive.map(c => c.today));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <SectionHead
         title="Pregled"
-        sub="Prodaja, prihodi i aktivnost u realnom vremenu"
-        actions={<>
-          <Btn variant="secondary" icon={I.export} size="sm">Izvezi</Btn>
-          <Btn icon={I.plus} size="sm">Nova prodaja</Btn>
-        </>}
+        sub={loading ? "Učitavanje…" : "Posljednjih 30 dana · uživo iz baze"}
+        actions={<Btn variant="secondary" icon={I.refresh} size="sm" onClick={load}>Osvježi</Btn>}
       />
 
+      {err && (
+        <div style={{ padding: "10px 14px", background: C.primarySoft, border: `1px solid ${C.border}`, borderRadius: 8, color: C.primaryDark, fontSize: 12 }}>
+          {err}
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-        <Stat label="Prodaje danas"    value="0"    />
-        <Stat label="Prihod danas"     value="€0"   />
-        <Stat label="Ovaj mjesec"      value="0"    />
-        <Stat label="Prosjek / dan"    value="0"    />
-        <Stat label="Otvoreni sporovi" value="0"    />
+        <Stat label="Prodaje danas"    value={String(todayOrders)} />
+        <Stat label="Prihod danas"     value={`€${Number(todayRevenue).toFixed(2)}`} />
+        <Stat label="Ovaj mjesec"      value={String(monthOrders)} />
+        <Stat label="Prihod / 30 dana" value={`€${Number(monthRevenue).toFixed(2)}`} />
+        <Stat label="Prosjek / dan"    value={String(avgPerDay)} />
       </div>
 
       {/* Channels snapshot + Recent */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 18 }}>
         <div style={{ ...card, overflow: "hidden" }}>
           <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.borderSoft}`, fontSize: 14, fontWeight: 600, color: C.text }}>
-            Kanali prodaje · danas
+            Kanali prodaje · 30 dana
           </div>
           <div style={{ padding: "6px 0" }}>
-            {CHANNELS.map(c => (
+            {channelsLive.map(c => (
               <div key={c.key} style={{ display: "flex", alignItems: "center", padding: "10px 18px", gap: 12 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 7, background: C.primarySoft, color: C.primaryDark, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ico d={c.icon} size={14} />
@@ -282,10 +321,10 @@ function Overview() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{c.name}</div>
                   <div style={{ marginTop: 5, height: 4, background: C.bg, borderRadius: 4 }}>
-                    <div style={{ height: "100%", width: `${c.pct}%`, background: c.live ? C.primary : C.textFaint, borderRadius: 4 }} />
+                    <div style={{ height: "100%", width: `${(c.today / maxToday) * 100}%`, background: c.live ? C.primary : C.textFaint, borderRadius: 4 }} />
                   </div>
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.text, width: 40, textAlign: "right" }}>{c.today}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text, width: 50, textAlign: "right" }}>{c.today}</div>
                 {!c.live && <Badge tone="warning">soon</Badge>}
               </div>
             ))}
@@ -294,28 +333,38 @@ function Overview() {
 
         <div style={{ ...card, overflow: "hidden" }}>
           <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.borderSoft}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Posljednje ulaznice</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Posljednje transakcije</div>
             <Badge tone="brand">Live</Badge>
           </div>
-          {RECENT_TICKETS.length === 0 ? (
+          {loading ? (
+            <div style={{ padding: "40px 18px", textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavanje…</div>
+          ) : recent.length === 0 ? (
             <div style={{ padding: "40px 18px", textAlign: "center", color: C.textSoft, fontSize: 13 }}>
-              Još nema izdatih ulaznica.
+              Još nema transakcija.
             </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
-                {RECENT_TICKETS.map((t, i) => (
-                  <tr key={t.id} style={{ borderBottom: i < RECENT_TICKETS.length - 1 ? `1px solid ${C.borderSoft}` : "none" }}>
-                    <td style={{ padding: "10px 18px", fontSize: 12, fontFamily: "ui-monospace, monospace", color: C.primaryDark, fontWeight: 600 }}>{t.id}</td>
-                    <td style={{ padding: "10px 18px", fontSize: 13, color: C.text }}>{t.type}</td>
-                    <td style={{ padding: "10px 18px", fontSize: 12, color: C.textMuted }}>{t.channel}</td>
-                    <td style={{ padding: "10px 18px", fontSize: 12, color: C.textSoft, fontFamily: "ui-monospace, monospace" }}>{t.time}</td>
-                    <td style={{ padding: "10px 18px", fontSize: 13, fontWeight: 700, color: C.text }}>€{t.price.toFixed(2)}</td>
-                    <td style={{ padding: "10px 18px", textAlign: "right" }}>
-                      <Badge tone={t.status === "valid" ? "success" : "neutral"}>{t.status}</Badge>
-                    </td>
-                  </tr>
-                ))}
+                {recent.slice(0, 8).map((t, i) => {
+                  const time = t.created_at ? new Date(t.created_at).toLocaleTimeString("sr-ME", { hour: "2-digit", minute: "2-digit" }) : "—";
+                  const amount = Number(t.amount ?? 0);
+                  const status = t.status ?? "—";
+                  return (
+                    <tr key={t.id || i} style={{ borderBottom: i < recent.length - 1 ? `1px solid ${C.borderSoft}` : "none" }}>
+                      <td style={{ padding: "10px 18px", fontSize: 12, fontFamily: "ui-monospace, monospace", color: C.primaryDark, fontWeight: 600 }}>
+                        {(t.stripe_pi_id || t.id || "").toString().slice(-10)}
+                      </td>
+                      <td style={{ padding: "10px 18px", fontSize: 12, color: C.textMuted }}>
+                        {t.brand ? `${t.brand} •••• ${t.last4 ?? "—"}` : (t.method ?? "card")}
+                      </td>
+                      <td style={{ padding: "10px 18px", fontSize: 12, color: C.textSoft, fontFamily: "ui-monospace, monospace" }}>{time}</td>
+                      <td style={{ padding: "10px 18px", fontSize: 13, fontWeight: 700, color: C.text }}>€{amount.toFixed(2)}</td>
+                      <td style={{ padding: "10px 18px", textAlign: "right" }}>
+                        <Badge tone={status === "succeeded" ? "success" : status === "failed" ? "danger" : "neutral"}>{status}</Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -1943,6 +1992,7 @@ function ApiDocs() {
 function Webhooks() {
   const [endpoints, setEndpoints] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
+  const [stripeEvents, setStripeEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
@@ -1952,6 +2002,7 @@ function Webhooks() {
       const res = await callEdge("admin-webhooks", { limit: 50 });
       setEndpoints(res.endpoints ?? []);
       setDeliveries(res.deliveries ?? []);
+      setStripeEvents(res.stripe_events ?? []);
     } catch (e) { setErr(String(e.message ?? e)); }
     finally { setLoading(false); }
   };
@@ -1962,11 +2013,20 @@ function Webhooks() {
     try { return new Date(iso).toLocaleString("sr-ME", { dateStyle: "short", timeStyle: "short" }); } catch { return iso; }
   };
 
+  // Boja po tipu eventa za vizuelno razlikovanje
+  const eventTone = (action) => {
+    if (action.startsWith("payment.")) return action === "payment.succeeded" ? "success" : "danger";
+    if (action.startsWith("refund."))  return "warning";
+    if (action.startsWith("charge.dispute.")) return "danger";
+    if (action.startsWith("email."))   return action === "email.ticket_sent" ? "success" : "danger";
+    return "neutral";
+  };
+
   return (
     <div>
       <SectionHead
         title="Webhook-ovi"
-        sub="Potpisani, autentikovani događaji · payment.* · refund.* · ticket.*"
+        sub="Stripe događaji (incoming) + outgoing endpointi (partneri)"
         actions={<Btn icon={I.refresh} size="sm" onClick={load}>Osvježi</Btn>}
       />
 
@@ -1976,10 +2036,38 @@ function Webhooks() {
         </div>
       )}
 
-      <div style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "4px 0 8px" }}>Registrovani endpointi</div>
+      {/* ── Stripe incoming events ─────────────────────────────────── */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "4px 0 8px" }}>
+        Stripe događaji (incoming) — payment.* · refund.* · charge.dispute.* · email.ticket_*
+      </div>
       {loading ? (
         <div style={{ padding: 24, textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavanje…</div>
-      ) : endpoints.length === 0 ? (
+      ) : stripeEvents.length === 0 ? (
+        <Empty icon={I.webhook} title="Nema Stripe događaja" sub="Kad Stripe pošalje payment_intent.succeeded webhook, akcija će se pojaviti ovdje." />
+      ) : (
+        <Table head={["Vrijeme", "Događaj", "Order ID", "Detalji"]}>
+          {stripeEvents.map(e => {
+            const meta = e.metadata || {};
+            const detail = meta.amount != null ? `€${Number(meta.amount).toFixed(2)}${meta.brand ? ` · ${meta.brand}` : ""}${meta.country ? ` · ${meta.country}` : ""}` : (meta.error ? `error: ${meta.error}` : "");
+            return (
+              <tr key={e.id}>
+                <td style={{ ...td, color: C.textSoft, fontSize: 12 }}>{fmtTime(e.created_at)}</td>
+                <td style={td}><Badge tone={eventTone(e.action)}>{e.action}</Badge></td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", color: C.textMuted, fontSize: 11 }}>
+                  {(e.entity_id || "").slice(0, 8)}{e.entity_id ? "…" : "—"}
+                </td>
+                <td style={{ ...td, color: C.textMuted, fontSize: 12 }}>{detail}</td>
+              </tr>
+            );
+          })}
+        </Table>
+      )}
+
+      {/* ── Outgoing endpointi (partneri) ──────────────────────────── */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "24px 0 8px" }}>
+        Outgoing endpointi (partneri)
+      </div>
+      {loading ? null : endpoints.length === 0 ? (
         <Empty icon={I.webhook} title="Nema registrovanih endpointa" sub="Endpointi se kreiraju direktno u bazi (kotorwalls_webhooks). Partneri (fiskal, Booking, GYG) primaju događaje na registrovani URL." />
       ) : (
         <Table head={["URL", "Događaji", "Status", "Zadnja isporuka"]}>
@@ -1994,22 +2082,25 @@ function Webhooks() {
         </Table>
       )}
 
-      <div style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "20px 0 8px" }}>Zadnje isporuke</div>
-      {loading ? null : deliveries.length === 0 ? (
-        <Empty icon={I.webhook} title="Nema isporuka" sub="Kad se pojavi prva isporuka (npr. payment.succeeded), prikazaće se ovdje sa response kodom i trajanjem." />
-      ) : (
-        <Table head={["Vrijeme", "Događaj", "Webhook", "HTTP", "Trajanje", "Status"]}>
-          {deliveries.map(d => (
-            <tr key={d.id}>
-              <td style={{ ...td, color: C.textSoft, fontSize: 12 }}>{fmtTime(d.created_at)}</td>
-              <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 12, color: C.text }}>{d.event_type}</td>
-              <td style={{ ...td, color: C.textSoft, fontSize: 11, fontFamily: "ui-monospace, monospace" }}>{(d.webhook_id || "").slice(0, 8)}</td>
-              <td style={{ ...td, fontFamily: "ui-monospace, monospace", color: d.response_code >= 200 && d.response_code < 300 ? "#15803D" : C.primaryDark, fontWeight: 600 }}>{d.response_code ?? "—"}</td>
-              <td style={{ ...td, color: C.textMuted, fontSize: 12 }}>{d.response_ms != null ? `${d.response_ms}ms` : "—"}</td>
-              <td style={td}><Badge tone={d.success ? "success" : "danger"}>{d.success ? "OK" : "FAIL"}</Badge></td>
-            </tr>
-          ))}
-        </Table>
+      {/* ── Outgoing isporuke ─────────────────────────────────────── */}
+      {!loading && deliveries.length > 0 && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "20px 0 8px" }}>
+            Outgoing isporuke
+          </div>
+          <Table head={["Vrijeme", "Događaj", "Webhook", "HTTP", "Trajanje", "Status"]}>
+            {deliveries.map(d => (
+              <tr key={d.id}>
+                <td style={{ ...td, color: C.textSoft, fontSize: 12 }}>{fmtTime(d.created_at)}</td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 12, color: C.text }}>{d.event_type}</td>
+                <td style={{ ...td, color: C.textSoft, fontSize: 11, fontFamily: "ui-monospace, monospace" }}>{(d.webhook_id || "").slice(0, 8)}</td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", color: d.response_code >= 200 && d.response_code < 300 ? "#15803D" : C.primaryDark, fontWeight: 600 }}>{d.response_code ?? "—"}</td>
+                <td style={{ ...td, color: C.textMuted, fontSize: 12 }}>{d.response_ms != null ? `${d.response_ms}ms` : "—"}</td>
+                <td style={td}><Badge tone={d.success ? "success" : "danger"}>{d.success ? "OK" : "FAIL"}</Badge></td>
+              </tr>
+            ))}
+          </Table>
+        </>
       )}
 
       <RetentionCard kind="webhook" />

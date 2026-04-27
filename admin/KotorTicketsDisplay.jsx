@@ -84,18 +84,26 @@ function StatusBadge({ status, t }) {
 }
 
 export default function KotorTicketsDisplay() {
-  // Parse hash: #tickets?order=XXX ili #tickets?session_id=cs_XXX
-  const [query, setQuery] = useState(() => {
-    const h = window.location.hash.split("?")[1] ?? "";
-    return new URLSearchParams(h);
-  });
+  // Parse query iz BOTH search (?order=XXX) i hash (#tickets?order=XXX).
+  // search ima prednost, jer Vercel SPA rewrite šalje na /index.html sa search,
+  // a stari linkovi mogu i dalje koristiti #hash format.
+  const readQuery = () => {
+    const search = new URLSearchParams(window.location.search);
+    const hashQ  = new URLSearchParams(window.location.hash.split("?")[1] ?? "");
+    const merged = new URLSearchParams();
+    for (const [k, v] of hashQ) merged.set(k, v);
+    for (const [k, v] of search) merged.set(k, v);   // search overrides hash
+    return merged;
+  };
+  const [query, setQuery] = useState(readQuery);
   useEffect(() => {
-    const onHash = () => {
-      const h = window.location.hash.split("?")[1] ?? "";
-      setQuery(new URLSearchParams(h));
+    const on = () => setQuery(readQuery());
+    window.addEventListener("hashchange", on);
+    window.addEventListener("popstate",  on);
+    return () => {
+      window.removeEventListener("hashchange", on);
+      window.removeEventListener("popstate",  on);
     };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   const orderId   = query.get("order");
@@ -311,13 +319,37 @@ export default function KotorTicketsDisplay() {
             </div>
 
             {/* Actions */}
-            <div style={{ marginTop: 20, display: "flex", gap: 10, justifyContent: "center" }}>
-              <button onClick={() => window.print()} style={{
-                padding: "10px 20px", background: C.surface, color: C.textMuted,
-                border: `1px solid ${C.border}`, borderRadius: 8,
-                fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-              }}>{t.print}</button>
+            <div style={{ marginTop: 20, display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={() => window.print()} className="no-print" style={{
+                padding: "12px 24px", background: C.primary, color: "#fff",
+                border: "none", borderRadius: 8,
+                fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                boxShadow: "0 1px 2px rgba(178,58,58,0.25)",
+              }}>📥 {t.download}</button>
+              <button
+                onClick={() => {
+                  const txt = data.tickets.map((tk, i) =>
+                    `${t.ticketOf(i + 1, data.tickets.length)} · ${tk.category_name} · ${tk.qr_code}`
+                  ).join("\n");
+                  navigator.clipboard?.writeText(txt);
+                }}
+                className="no-print"
+                style={{
+                  padding: "12px 20px", background: C.surface, color: C.textMuted,
+                  border: `1px solid ${C.border}`, borderRadius: 8,
+                  fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                }}>📋 Kopiraj ID-jeve</button>
             </div>
+
+            {/* Print CSS — sakriva navigaciju, čisti backgrounds, layout za A4 */}
+            <style>{`
+              @media print {
+                body { background: #fff !important; }
+                .no-print { display: none !important; }
+                @page { size: A4 portrait; margin: 16mm; }
+                button { display: none !important; }
+              }
+            `}</style>
           </>
         )}
 
