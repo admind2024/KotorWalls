@@ -608,41 +608,37 @@ export default function KotorTicket() {
                     <input style={fieldInput} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))} autoComplete="tel" />
                   </div>
 
-                  {/* ZIP prvo — grad + država se auto-popunjavaju */}
+                  {/* Adresa — puni red, prije ZIP/Grad/Država (kao etiketing inline forma) */}
                   <div>
-                    <label style={fieldLabel}>
-                      {t.zip} *
-                      {zipLookup.loading && <span style={{ color: C.textFaint, marginLeft: 6, fontWeight: 400 }}>…</span>}
-                      {zipLookup.error === "not_found" && !zipLookup.loading && customer.zip && (
-                        <span style={{ color: C.primaryDark, marginLeft: 6, fontSize: 10, fontWeight: 500 }}>not found · manual entry</span>
-                      )}
-                    </label>
+                    <label style={fieldLabel}>{t.address}</label>
                     <input
-                      style={{
-                        ...fieldInput,
-                        borderColor: zipLookup.matches.length ? "#2F7D4F" : zipLookup.error ? "#F3CFCF" : C.border,
-                      }}
-                      value={customer.zip}
-                      inputMode="text"
-                      autoComplete="postal-code"
-                      placeholder="85330"
-                      onChange={e => setCustomer(c => ({ ...c, zip: e.target.value }))}
+                      style={fieldInput}
+                      value={customer.address}
+                      onChange={e => setCustomer(c => ({ ...c, address: e.target.value }))}
+                      autoComplete="street-address"
+                      placeholder="—"
                     />
-                    {zipLookup.matches.length > 1 && (
-                      <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 5 }}>
-                        <span style={{ fontSize: 10, color: C.textSoft, alignSelf: "center" }}>other:</span>
-                        {zipLookup.matches.slice(1).map((m, i) => (
-                          <button key={i} type="button" onClick={() => pickMatch(m)} style={{
-                            padding: "3px 8px", fontSize: 10, fontWeight: 600,
-                            background: C.bg, border: `1px solid ${C.border}`, borderRadius: 999,
-                            color: C.textMuted, cursor: "pointer", fontFamily: "inherit",
-                          }}>{m.country_code} · {m.city || m.country}</button>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 10 }}>
+                  {/* ZIP + Grad + Država — jedan red. ZIP auto-popunjava grad i državu preko Nominatim-a. */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 0.7fr", gap: 10 }}>
+                    <div>
+                      <label style={fieldLabel}>
+                        {t.zip} *
+                        {zipLookup.loading && <span style={{ color: C.textFaint, marginLeft: 6, fontWeight: 400 }}>…</span>}
+                      </label>
+                      <input
+                        style={{
+                          ...fieldInput,
+                          borderColor: zipLookup.matches.length ? "#2F7D4F" : zipLookup.error ? "#F3CFCF" : C.border,
+                        }}
+                        value={customer.zip}
+                        inputMode="text"
+                        autoComplete="postal-code"
+                        placeholder="85330"
+                        onChange={e => setCustomer(c => ({ ...c, zip: e.target.value }))}
+                      />
+                    </div>
                     <div>
                       <label style={fieldLabel}>{t.city}</label>
                       <input
@@ -671,6 +667,7 @@ export default function KotorTicket() {
                           color: zipLookup.matches.length ? C.textMuted : C.text,
                           cursor: zipLookup.matches.length ? "default" : "text",
                           borderColor: zipLookup.matches[0] ? "#2F7D4F" : C.border,
+                          textAlign: "center", letterSpacing: "0.5px",
                         }}
                         value={customer.country}
                         readOnly={zipLookup.matches.length > 0}
@@ -682,10 +679,26 @@ export default function KotorTicket() {
                     </div>
                   </div>
 
-                  <div>
-                    <label style={fieldLabel}>{t.address}</label>
-                    <input style={fieldInput} value={customer.address} onChange={e => setCustomer(c => ({ ...c, address: e.target.value }))} autoComplete="street-address" />
-                  </div>
+                  {/* "not found" hint + alternativni ZIP match-evi (ispod, da ne razbijaju 3-col layout) */}
+                  {(zipLookup.error === "not_found" && !zipLookup.loading && customer.zip) || zipLookup.matches.length > 1 ? (
+                    <div style={{ marginTop: -4, display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
+                      {zipLookup.error === "not_found" && !zipLookup.loading && customer.zip && (
+                        <span style={{ color: C.primaryDark, fontSize: 10, fontWeight: 500 }}>ZIP nije pronađen · ručni unos</span>
+                      )}
+                      {zipLookup.matches.length > 1 && (
+                        <>
+                          <span style={{ fontSize: 10, color: C.textSoft }}>drugi:</span>
+                          {zipLookup.matches.slice(1).map((m, i) => (
+                            <button key={i} type="button" onClick={() => pickMatch(m)} style={{
+                              padding: "3px 8px", fontSize: 10, fontWeight: 600,
+                              background: C.bg, border: `1px solid ${C.border}`, borderRadius: 999,
+                              color: C.textMuted, cursor: "pointer", fontFamily: "inherit",
+                            }}>{m.country_code} · {m.city || m.country}</button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* ZZP CG napomena */}
