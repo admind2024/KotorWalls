@@ -159,11 +159,14 @@ function Btn({ children, variant = "primary", onClick, icon, size = "md" }) {
   );
 }
 
-function Stat({ label, value, delta, tone = "success" }) {
+function Stat({ label, value, delta, tone = "success", sub }) {
   return (
     <div style={{ ...card, padding: 18 }}>
       <div style={{ fontSize: 12, color: C.textSoft, fontWeight: 500, marginBottom: 8 }}>{label}</div>
       <div style={{ fontSize: 26, fontWeight: 700, color: C.text, letterSpacing: "-0.5px", lineHeight: 1 }}>{value}</div>
+      {sub && (
+        <div style={{ marginTop: 8, fontSize: 11, color: C.textFaint, fontWeight: 500 }}>{sub}</div>
+      )}
       {delta && (
         <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
           <Badge tone={tone}>
@@ -261,7 +264,9 @@ function Overview() {
         callEdge("admin-transactions", { limit: 8 }),
       ]);
       setReports(rep);
-      setRecent(tx?.rows ?? tx?.transactions ?? []);
+      // admin-transactions vraća { transactions: [...] } sa attached refunds
+      // niz na svakom — koristimo to da označimo refundirane.
+      setRecent(tx?.transactions ?? tx?.rows ?? []);
     } catch (e) { setErr(String(e.message ?? e)); }
     finally { setLoading(false); }
   };
@@ -273,7 +278,10 @@ function Overview() {
   const todayOrders  = hourly.reduce((s, h) => s + (h.orders  ?? 0), 0);
   const todayRevenue = hourly.reduce((s, h) => s + (h.revenue ?? 0), 0);
   const monthOrders  = summary.orders_count ?? 0;
-  const monthRevenue = summary.revenue_gross ?? 0;
+  const monthRevenueGross = summary.revenue_gross ?? 0;
+  const monthRevenueNet   = summary.revenue_net   ?? 0;
+  const refundsCount = summary.refunds_count ?? 0;
+  const refundsTotal = summary.refunds_total ?? 0;
   const avgPerDay    = Math.round((monthOrders / 30) * 10) / 10;
 
   // Channels iz sales_by_channel — mapiraj na CHANNELS metadata
@@ -298,11 +306,17 @@ function Overview() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
         <Stat label="Prodaje danas"    value={String(todayOrders)} />
         <Stat label="Prihod danas"     value={`€${Number(todayRevenue).toFixed(2)}`} />
-        <Stat label="Ovaj mjesec"      value={String(monthOrders)} />
-        <Stat label="Prihod / 30 dana" value={`€${Number(monthRevenue).toFixed(2)}`} />
+        <Stat label="Plaćene narudžbe / 30 dana" value={String(monthOrders)} />
+        <Stat
+          label="Net prihod / 30 dana"
+          value={`€${Number(monthRevenueNet).toFixed(2)}`}
+          sub={refundsCount > 0
+            ? `bruto €${Number(monthRevenueGross).toFixed(2)} − ${refundsCount} refund(a) €${Number(refundsTotal).toFixed(2)}`
+            : `bruto = net (nema refunda)`}
+        />
         <Stat label="Prosjek / dan"    value={String(avgPerDay)} />
       </div>
 
@@ -349,6 +363,23 @@ function Overview() {
                   const time = t.created_at ? new Date(t.created_at).toLocaleTimeString("sr-ME", { hour: "2-digit", minute: "2-digit" }) : "—";
                   const amount = Number(t.amount ?? 0);
                   const status = t.status ?? "—";
+                  // Refundirana? — admin-transactions attach-uje niz refunds[]
+                  // na svaku transakciju. Ako ima makar jedan refund sa
+                  // statusom succeeded, transakcija se vizuelno označava
+                  // kao refundirana (umjesto da pokazuje "succeeded").
+                  const refundedSum = (t.refunds ?? []).filter(r => r.status === "succeeded")
+                    .reduce((s, r) => s + Number(r.amount ?? 0), 0);
+                  const isFullRefund    = refundedSum >= amount - 0.01 && refundedSum > 0;
+                  const isPartialRefund = refundedSum > 0 && !isFullRefund;
+                  const displayStatus =
+                    isFullRefund    ? "refunded"
+                  : isPartialRefund ? "partial refund"
+                  : status;
+                  const tone =
+                    isFullRefund    ? "warning"
+                  : isPartialRefund ? "warning"
+                  : status === "succeeded" ? "success"
+                  : status === "failed"    ? "danger" : "neutral";
                   return (
                     <tr key={t.id || i} style={{ borderBottom: i < recent.length - 1 ? `1px solid ${C.borderSoft}` : "none" }}>
                       <td style={{ padding: "10px 18px", fontSize: 12, fontFamily: "ui-monospace, monospace", color: C.primaryDark, fontWeight: 600 }}>
@@ -358,9 +389,14 @@ function Overview() {
                         {t.brand ? `${t.brand} •••• ${t.last4 ?? "—"}` : (t.method ?? "card")}
                       </td>
                       <td style={{ padding: "10px 18px", fontSize: 12, color: C.textSoft, fontFamily: "ui-monospace, monospace" }}>{time}</td>
-                      <td style={{ padding: "10px 18px", fontSize: 13, fontWeight: 700, color: C.text }}>€{amount.toFixed(2)}</td>
+                      <td style={{ padding: "10px 18px", fontSize: 13, fontWeight: 700, color: isFullRefund ? C.textSoft : C.text, textDecoration: isFullRefund ? "line-through" : "none" }}>
+                        €{amount.toFixed(2)}
+                        {refundedSum > 0 && (
+                          <div style={{ fontSize: 10, color: C.primaryDark, fontWeight: 500 }}>−€{refundedSum.toFixed(2)}</div>
+                        )}
+                      </td>
                       <td style={{ padding: "10px 18px", textAlign: "right" }}>
-                        <Badge tone={status === "succeeded" ? "success" : status === "failed" ? "danger" : "neutral"}>{status}</Badge>
+                        <Badge tone={tone}>{displayStatus}</Badge>
                       </td>
                     </tr>
                   );
