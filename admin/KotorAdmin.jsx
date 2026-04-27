@@ -1428,18 +1428,93 @@ function Fraud() {
   );
 }
 
+const CHANNEL_LABEL = {
+  web:     "Web",
+  widget:  "Embed widget",
+  kiosk:   "Samouslužni kiosci",
+  pos:     "POS / blagajna",
+  onboard: "Onboard / brodovi",
+  partner: "Booking / GYG",
+  unknown: "Nepoznat kanal",
+};
+
 function Fiscal() {
+  const [range, setRange] = useState("30d");
+  const [data, setData]   = useState(null);
+  const [loading, setLoad] = useState(true);
+  const [err, setErr]     = useState(null);
+  const [retryingId, setRetryingId] = useState(null);
+
+  const load = async () => {
+    setLoad(true); setErr(null);
+    try {
+      const res = await callEdge("admin-fiscal", { action: "get", range });
+      if (res?.error) throw new Error(res.error);
+      setData(res);
+    } catch (e) { setErr(String(e.message ?? e)); }
+    finally { setLoad(false); }
+  };
+  useEffect(() => { load(); }, [range]);
+
+  const retry = async (orderId) => {
+    setRetryingId(orderId);
+    try {
+      const res = await callEdge("admin-fiscal", { action: "retry", order_id: orderId });
+      if (res?.error) alert(`Greška: ${res.error}`);
+      else if (res?.success) alert(`Uspješno fiskalizovano. IIC: ${res.iic ?? "-"}`);
+      else alert(`Neuspješno: ${res?.error ?? "nepoznata greška"}`);
+      await load();
+    } catch (e) { alert(String(e.message ?? e)); }
+    finally { setRetryingId(null); }
+  };
+
+  const s   = data?.summary ?? {};
+  const cfg = data?.config  ?? {};
+  const byChan = data?.by_channel ?? [];
+  const recent = data?.recent     ?? [];
+  const money  = v => fmtMoney(v, "EUR");
+  const isProd = !!s.is_production;
+
   return (
     <div>
-      <SectionHead title="Fiskalizacija" sub="Crnogorski ENU + QR na računu" />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <SectionHead
+        title="Fiskalizacija"
+        sub="Crnogorski EFI / CIS — pregled po kanalu prodaje"
+        actions={<>
+          <div style={{ display: "flex", gap: 4, padding: 3, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7 }}>
+            {REPORT_RANGES.map(r => (
+              <button key={r.key} onClick={() => setRange(r.key)} style={{
+                padding: "5px 11px", fontSize: 12, fontWeight: 600,
+                background: range === r.key ? C.primary : "transparent",
+                color: range === r.key ? "#fff" : C.textMuted,
+                border: "none", borderRadius: 5, cursor: "pointer", fontFamily: "inherit",
+              }}>{r.label}</button>
+            ))}
+          </div>
+          <Btn variant="secondary" icon={I.clock} size="sm" onClick={load}>Osvježi</Btn>
+        </>}
+      />
+
+      {err && <div style={{ ...card, padding: 14, marginBottom: 12, background: C.primarySoft, borderColor: "#F3CFCF", color: C.primaryDark, fontSize: 13 }}>{err}</div>}
+
+      {/* KPI */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 18 }}>
+        <Stat label="Fiskalizovano"   value={String(s.succeeded_count ?? 0)} />
+        <Stat label="Neuspješno"      value={String(s.failed_count ?? 0)}    tone={(s.failed_count ?? 0) > 0 ? "warning" : "success"} />
+        <Stat label="Na čekanju"      value={String(s.pending_count ?? 0)}   tone={(s.pending_count ?? 0) > 0 ? "warning" : "success"} />
+        <Stat label="Iznos (uspješni)" value={money(s.total_amount ?? 0)} />
+        <Stat label="Posljednji IIC"  value={s.last_iic ? `${s.last_iic.slice(0,8)}…` : "—"} sub={s.last_iic ? "kratki prikaz" : null} />
+      </div>
+
+      {/* Status + parametri */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
         <div style={{ ...card, padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 14 }}>Status konekcije</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 14 }}>Status servisa</div>
           {[
-            ["ENU servis",        "online",  "success"],
-            ["Sertifikat",        "važi do 2026-11-12", "success"],
-            ["Posljednji IKOF",   "5a2c…bd2f", "neutral"],
-            ["Neizlistanih", "0", "success"],
+            ["Fiskalizacija",  s.config_enabled ? "uključena" : "isključena", s.config_enabled ? "success" : "warning"],
+            ["Okruženje",      isProd ? "PROD" : "TEST",                       isProd ? "danger" : "info"],
+            ["Posljednji IIC", s.last_iic ? `${s.last_iic.slice(0,12)}…` : "—", "neutral"],
+            ["Neuspješni",     String(s.failed_count ?? 0),                    (s.failed_count ?? 0) > 0 ? "warning" : "success"],
           ].map(([k, v, t]) => (
             <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.borderSoft}` }}>
               <span style={{ fontSize: 13, color: C.textMuted }}>{k}</span>
@@ -1450,17 +1525,97 @@ function Fiscal() {
         <div style={{ ...card, padding: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 14 }}>Poreski parametri</div>
           {[
-            ["PDV stopa",          "21%"],
-            ["Poreska šifra",      "PDV-021"],
-            ["Operater default",   "KW-ADMIN"],
-            ["Obrasci računa",     "A4 · 80mm"],
+            ["Naziv",          cfg.seller_name ?? "—"],
+            ["PIB",            cfg.seller_tin ?? "—"],
+            ["TCR / ENU",      cfg.tcr_code ?? "—"],
+            ["Poslovna jedinica", cfg.business_unit_code ?? "—"],
+            ["PDV stopa",      cfg.default_vat_rate != null ? `${cfg.default_vat_rate}%` : "—"],
+            ["Default operater", cfg.operator_code ?? "—"],
           ].map(([k, v]) => (
             <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.borderSoft}` }}>
               <span style={{ fontSize: 13, color: C.textMuted }}>{k}</span>
-              <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{v}</span>
+              <span style={{ fontSize: 13, color: C.text, fontWeight: 600, fontFamily: ["TCR / ENU", "PIB", "Poslovna jedinica", "Default operater"].includes(k) ? "ui-monospace, monospace" : "inherit" }}>{v}</span>
             </div>
           ))}
         </div>
+      </div>
+
+      {loading && !data && (
+        <div style={{ ...card, padding: 40, textAlign: "center", color: C.textSoft, fontSize: 13 }}>Učitavam…</div>
+      )}
+
+      {/* Per-channel breakdown */}
+      <div style={{ ...card, padding: 20, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Fiskalizacija po kanalu prodaje</div>
+            <div style={{ fontSize: 12, color: C.textSoft, marginTop: 2 }}>{byChan.length} aktivnih kanala u izabranom periodu</div>
+          </div>
+          <Btn variant="secondary" icon={I.export} size="sm" onClick={() => downloadCsv(`kotor-fiscal-channels-${range}.csv`, byChan)}>CSV</Btn>
+        </div>
+        {byChan.length === 0 ? (
+          <Empty title="Nema fiskalnih zapisa" sub="Čim se prva narudžbina plati i fiskalizuje, pojaviće se ovdje." />
+        ) : (
+          <Table head={["Kanal", "Uspješno", "Neuspješno", "Na čekanju", "Iznos"]}>
+            {byChan.map(c => (
+              <tr key={c.channel}>
+                <td style={td}>{CHANNEL_LABEL[c.channel] ?? c.channel}</td>
+                <td style={td}><Badge tone="success">{c.succeeded}</Badge></td>
+                <td style={td}>{c.failed > 0 ? <Badge tone="danger">{c.failed}</Badge> : <span style={{ color: C.textFaint }}>0</span>}</td>
+                <td style={td}>{c.pending > 0 ? <Badge tone="warning">{c.pending}</Badge> : <span style={{ color: C.textFaint }}>0</span>}</td>
+                <td style={{ ...td, fontWeight: 700, color: C.text }}>{money(c.amount)}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </div>
+
+      {/* Recent fiscal records */}
+      <div style={{ ...card, padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Posljednji fiskalni računi</div>
+            <div style={{ fontSize: 12, color: C.textSoft, marginTop: 2 }}>Zadnjih {recent.length} zapisa · klik na IIC otvara CIS verifikaciju</div>
+          </div>
+        </div>
+        {recent.length === 0 ? (
+          <Empty title="Nema zapisa" sub="Fiskalni računi se pojavljuju nakon uspješne naplate." />
+        ) : (
+          <Table head={["Vrijeme", "Kanal", "Br.", "Status", "IIC", "FIC", "Iznos", ""]}>
+            {recent.map(r => (
+              <tr key={r.id}>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{fmtTime(r.created_at)}</td>
+                <td style={td}>{CHANNEL_LABEL[r.channel] ?? r.channel ?? "—"}</td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace" }}>{r.invoice_ord_num ?? "—"}</td>
+                <td style={td}>
+                  {r.status === "succeeded" && <Badge tone="success">OK</Badge>}
+                  {r.status === "failed"    && <Badge tone="danger" title={r.error}>FAIL</Badge>}
+                  {r.status === "pending"   && <Badge tone="warning">…</Badge>}
+                </td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 11 }}>
+                  {r.qr_url
+                    ? <a href={r.qr_url} target="_blank" rel="noopener noreferrer" style={{ color: C.primary, textDecoration: "none" }}>{r.ikof ? `${r.ikof.slice(0,12)}…` : "—"}</a>
+                    : (r.ikof ? `${r.ikof.slice(0,12)}…` : "—")}
+                </td>
+                <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 11 }}>{r.jikr ? `${r.jikr.slice(0,12)}…` : "—"}</td>
+                <td style={{ ...td, fontWeight: 600 }}>{money(r.total)}</td>
+                <td style={td}>
+                  {r.status === "failed" && (
+                    <button
+                      onClick={() => retry(r.order_id)}
+                      disabled={retryingId === r.order_id}
+                      style={{
+                        padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                        background: retryingId === r.order_id ? C.borderSoft : C.primary, color: "#fff",
+                        border: "none", borderRadius: 5, cursor: retryingId === r.order_id ? "wait" : "pointer",
+                        fontFamily: "inherit",
+                      }}>{retryingId === r.order_id ? "…" : "Retry"}</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </Table>
+        )}
       </div>
     </div>
   );
