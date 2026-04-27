@@ -9,7 +9,7 @@ create table if not exists kotorwalls_fiscal_config (
   enabled                boolean not null default true,
   is_production          boolean not null default false,
   is_issuer_in_vat       boolean not null default true,
-  default_vat_rate       numeric(5,2) not null default 21,
+  default_vat_rate       numeric(5,2) not null default 15,
 
   seller_tin             text not null,
   seller_name            text not null,
@@ -44,7 +44,7 @@ insert into kotorwalls_fiscal_config (
   pfx_password, external_tenant_id,
   fiscal_api_key
 ) values (
-  1, false, true, 21,
+  1, false, true, 15,
   '03627357', 'TECONIA MONTENEGRO DOO', 'zq333zc597', 'Podgorica', 'Podgorica',
   'rc621rr268', 'lm441kt072', 'ah031cl261',
   'ktzrfdmudx', '3f4cce7b-3d14-4489-a322-26cd471c5bad',
