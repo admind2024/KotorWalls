@@ -77,10 +77,10 @@ Deno.serve(async (req) => {
     const isReminder = body.reason === "reminder";
     const isResend   = body.reason === "resend";
     const subject    = isReminder
-      ? "Reminder: your Kotor Walls tickets"
+      ? "🎫 Podsjetnik: Vaše karte za Kotorske zidine"
       : isResend
-        ? "Your Kotor Walls tickets (resent)"
-        : "Your Kotor Walls tickets";
+        ? "🎫 Vaše karte za Kotorske zidine (ponovo poslato)"
+        : "🎫 Vaše karte: Kotorske zidine";
 
     const htmlBody = renderEmailHtml({
       customerName: customer.name,
@@ -122,7 +122,8 @@ Deno.serve(async (req) => {
   }
 });
 
-// ─── HTML template (engleski primarno) ──────────────────────────────────────
+// ─── HTML template (premium dizajn, identičan etiketing.me, prilagođen za
+// Zidine: nema event_name/datum/vrijeme/venue/calendar dugmadi). ───────────
 function renderEmailHtml(args: {
   customerName: string;
   tickets: Ticket[];
@@ -133,95 +134,349 @@ function renderEmailHtml(args: {
   orderId: string | null;
 }): string {
   const { customerName, tickets, total, currency, isReminder, isResend, orderId } = args;
-  const count  = tickets.length;
+  const count   = tickets.length;
   const viewUrl = orderId ? `${TICKETS_URL}?order=${orderId}` : TICKETS_URL;
+  const orderRef = orderId ? orderId.slice(0, 8).toUpperCase() : "—";
 
-  const headerSubtitle = isReminder
-    ? "Reminder for your visit"
+  const subtotal = tickets.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+  const totalAmount = total ?? subtotal;
+  const cur = currency || "EUR";
+
+  // Ticket stubs — identičan dizajn kao etiketing premium template
+  const ticketStubsHtml = tickets.map((t, i) => {
+    const qrUrl = t.qr_image_url
+      ? esc(t.qr_image_url)
+      : `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(t.qr_code ?? "ticket")}`;
+    const ticketLabel = t.category_name ? esc(t.category_name) : "Ulaznica";
+    const ticketIdShort = t.qr_code ? esc(t.qr_code) : (t.id ? esc(t.id).slice(0, 12) : "");
+    return `
+<tr>
+  <td style="padding: 0 28px 10px 28px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-card" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid rgba(0,0,0,0.06);">
+      <tr>
+        <td width="5" style="background: linear-gradient(180deg, #1e3a8a, #2d55c7); width: 5px;"></td>
+        <td style="padding: 16px 18px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            <tr>
+              <td valign="top">
+                <p class="dm-blue-accent" style="margin: 0 0 2px 0; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #1e3a8a; text-transform: uppercase;">Ulaznica #${String(i + 1).padStart(2, "0")}</p>
+                <p class="dm-text-primary" style="margin: 0 0 6px 0; font-size: 14px; font-weight: 600; color: #1a1a2e;">${ticketLabel}</p>
+                <p class="dm-text-mono" style="margin: 0; font-size: 11px; color: #999; font-family: monospace;">${ticketIdShort}</p>
+                ${t.price != null ? `<p class="dm-text-secondary" style="margin: 6px 0 0; font-size: 12px; color: #666;">${fmtMoney(Number(t.price), cur)}</p>` : ""}
+              </td>
+              <td width="100" align="right" valign="top">
+                <img src="${qrUrl}" alt="QR" width="96" height="96" style="border-radius: 4px; display: block;" />
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>`;
+  }).join("\n");
+
+  const greeting = customerName ? esc(customerName) : "kupac";
+  const headerStatusText = isReminder ? "Podsjetnik" : isResend ? "Karte ponovo poslate" : "Plaćanje potvrđeno";
+  const introText = isReminder
+    ? "Podsjećamo vas na karte za posjetu Kotorskim zidinama. Sačuvajte QR kodove i pokažite ih na ulazu."
     : isResend
-      ? "Your tickets — resent"
-      : "Your tickets are ready";
-
-  const intro = isReminder
-    ? `This is a reminder that you have tickets for the <strong>Kotor City Walls</strong>. Please have your QR codes ready at the entrance.`
-    : isResend
-      ? `As requested, here are your tickets for the <strong>Kotor City Walls</strong> again.`
-      : `Thank you for your purchase. Below are your <strong>${count}</strong> ticket(s) for the <strong>Kotor City Walls</strong> (UNESCO World Heritage Site).`;
-
-  const ticketsHtml = tickets.map((t, i) => `
-    <tr>
-      <td style="padding: 14px 18px; border-bottom: 1px solid #eee;">
-        <div style="font-size: 13px; color: #6B7684; letter-spacing: 0.4px; text-transform: uppercase; font-weight: 600;">Ticket ${i + 1}${t.category_name ? ` · ${esc(t.category_name)}` : ""}</div>
-        <div style="font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: #1A1F2B; margin-top: 4px; font-weight: 600;">${esc(t.qr_code ?? "")}</div>
-        ${t.price != null ? `<div style="font-size: 12px; color: #9AA3B2; margin-top: 2px;">${fmtMoney(t.price, currency)}</div>` : ""}
-      </td>
-      <td style="padding: 14px 18px; border-bottom: 1px solid #eee; text-align: right; vertical-align: middle;">
-        ${t.qr_image_url ? `<img src="${esc(t.qr_image_url)}" alt="QR" width="80" height="80" style="display: inline-block; border: 1px solid #E6E8EB; border-radius: 6px; padding: 4px; background: #fff;" />` : `<div style="font-size: 12px; color: #9AA3B2;">QR unavailable</div>`}
-      </td>
-    </tr>
-  `).join("");
+      ? "Po vašem zahtjevu, evo ponovo vaših karata za Kotorske zidine."
+      : "Vaše karte su spremne. Sačuvajte ih ili ih pokažite na ulazu.";
 
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Kotor Walls — tickets</title></head>
-<body style="margin: 0; padding: 0; background: #F7F8FA; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1A1F2B;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background: #F7F8FA; padding: 40px 0;">
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Vaše karte — Kotorske zidine</title>
+<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+<script type="application/ld+json">
+{
+  "@context": "http://schema.org",
+  "@type": "Reservation",
+  "reservationNumber": "${orderRef}",
+  "reservationStatus": "http://schema.org/ReservationConfirmed",
+  "underName": { "@type": "Person", "name": "${esc(customerName || "")}" },
+  "reservationFor": {
+    "@type": "TouristAttraction",
+    "name": "Kotor City Walls",
+    "address": { "@type": "PostalAddress", "streetAddress": "Stari grad bb", "addressLocality": "Kotor", "postalCode": "85330", "addressCountry": "ME" }
+  },
+  "numSeats": "${count}",
+  "ticketNumber": "${orderRef}",
+  "ticketPrintUrl": "${esc(viewUrl)}",
+  "potentialAction": { "@type": "ViewAction", "url": "${esc(viewUrl)}", "name": "Prikaži ulaznice" },
+  "totalPrice": "${totalAmount.toFixed(2)}",
+  "priceCurrency": "${cur}"
+}
+</script>
+<style type="text/css">
+:root{color-scheme:light dark;supported-color-schemes:light dark}
+body,table,td,p,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
+table,td{mso-table-lspace:0pt;mso-table-rspace:0pt}
+img{-ms-interpolation-mode:bicubic;border:0;height:auto;line-height:100%;outline:none;text-decoration:none}
+body{margin:0!important;padding:0!important;width:100%!important}
+@media (prefers-color-scheme:dark){
+body,.dm-body{background-color:#1a1a2e!important}
+.dm-content{background-color:#252540!important}
+.dm-card{background-color:#2a2a45!important;border-color:rgba(255,255,255,0.1)!important}
+.dm-text-primary{color:#e0e0e0!important}
+.dm-text-secondary{color:#bbb!important}
+.dm-text-muted{color:#aaa!important}
+.dm-text-mono{color:#ccc!important}
+.dm-divider{border-color:#3a3a55!important}
+.dm-info{background-color:rgba(30,58,138,0.2)!important}
+.dm-fiscal{background-color:rgba(22,101,52,0.15)!important}
+.dm-fiscal p,.dm-fiscal a{color:#86efac!important}
+.dm-refund{background-color:rgba(133,77,14,0.15)!important}
+.dm-refund p,.dm-refund a{color:#fcd34d!important}
+.dm-label{color:rgba(255,255,255,0.5)!important}
+.dm-price-value{color:#e0e0e0!important}
+.dm-header-dark{background-color:#1a1a2e!important}
+.dm-blue-accent{color:#93b4ff!important}
+.dm-link{color:#93b4ff!important}
+.dm-footer-border{border-color:#3a3a55!important}
+}
+</style>
+</head>
+<body class="dm-body" style="margin:0;padding:0;background-color:#f0ede8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+
+<!-- Preview text -->
+<div style="display:none;font-size:1px;color:#f0ede8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Vaše karte za Kotorske zidine · UNESCO svjetska baština
+</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-body" style="background-color:#f0ede8;">
+<tr>
+<td align="center" style="padding: 32px 16px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="520" style="max-width:520px;width:100%;">
+
+<!-- DARK HEADER -->
+<tr>
+<td style="background-color:#1a1a2e;border-radius:16px 16px 0 0;padding:32px 28px 28px 28px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
     <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(16,24,40,0.06);">
-          <!-- Header -->
+      <td>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td style="background: linear-gradient(135deg, #B23A3A 0%, #8E2A2A 100%); padding: 32px 40px; text-align: center;">
-              <h1 style="color: #FFFFFF; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px;">Kotor City Walls</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 6px 0 0; font-size: 13px; font-weight: 500;">${headerSubtitle}</p>
+            <td width="34" height="34" style="background-color:#C9A227;border-radius:8px;" align="center">
+              <span style="color:#1a1a2e;font-size:16px;font-weight:800;line-height:34px;">K</span>
+            </td>
+            <td style="padding-left:10px;">
+              <span style="color:#ffffff;font-size:16px;font-weight:600;letter-spacing:-0.01em;">Kotor Walls</span>
             </td>
           </tr>
-
-          <!-- Body -->
+        </table>
+      </td>
+      <td align="right">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td style="padding: 32px 40px 24px;">
-              <p style="font-size: 15px; color: #1A1F2B; margin: 0 0 10px; font-weight: 600;">Dear ${esc(customerName || "guest")},</p>
-              <p style="font-size: 14px; color: #4A5363; margin: 0 0 24px; line-height: 1.6;">${intro}</p>
-
-              <!-- CTA -->
-              <div style="background: #FBF2D6; border: 1px solid #EADD9C; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 24px;">
-                <p style="font-size: 13px; color: #A8841C; margin: 0 0 12px; font-weight: 700; letter-spacing: 0.2px;">VIEW ALL YOUR TICKETS ONLINE</p>
-                <a href="${esc(viewUrl)}" style="display: inline-block; background: #B23A3A; color: #FFFFFF; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px;">Open my ${count > 1 ? `tickets (${count})` : "ticket"}</a>
-              </div>
-
-              ${count > 0 ? `
-              <p style="font-size: 12px; color: #6B7684; margin: 0 0 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Your QR codes</p>
-              <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #E6E8EB; border-radius: 10px; overflow: hidden;">
-                ${ticketsHtml}
+            <td style="background-color:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.3);border-radius:16px;padding:4px 12px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="6" height="6" style="background-color:#4ade80;border-radius:3px;"></td>
+                  <td style="padding-left:6px;font-size:11px;color:rgba(255,255,255,0.9);font-weight:500;">${esc(headerStatusText)}</td>
+                </tr>
               </table>
-              ` : ""}
-
-              ${total != null ? `
-              <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #F0F1F4; display: flex; justify-content: space-between;">
-                <span style="font-size: 13px; color: #6B7684;">Total paid</span>
-                <span style="font-size: 14px; color: #1A1F2B; font-weight: 700;">${fmtMoney(total, currency)}</span>
-              </div>
-              ` : ""}
-
-              <p style="font-size: 12px; color: #9AA3B2; margin: 24px 0 0; line-height: 1.6;">
-                Present the QR code at the automated gate. Each QR can be used once. The walls open from 08:00 — please check local conditions on the day of your visit.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background: #F7F8FA; padding: 20px 40px; text-align: center; border-top: 1px solid #F0F1F4;">
-              <p style="font-size: 11px; color: #6B7684; margin: 0 0 4px; font-weight: 600;">Kotor City Walls d.o.o. · PIB 03123456</p>
-              <p style="font-size: 11px; color: #9AA3B2; margin: 0; line-height: 1.6;">
-                Stari grad bb, 85330 Kotor, Montenegro · support@kotorwalls.com
-              </p>
             </td>
           </tr>
         </table>
       </td>
     </tr>
   </table>
+
+  <p style="margin:0 0 8px 0;font-size:11px;font-weight:500;letter-spacing:0.12em;color:rgba(255,255,255,0.5);text-transform:uppercase;">
+    Potvrda rezervacije · #${orderRef}
+  </p>
+  <h1 style="margin:0;font-size:26px;font-weight:700;color:#ffffff;line-height:1.25;">
+    Kotorske gradske zidine
+  </h1>
+  <p style="margin:8px 0 0 0;font-size:12px;color:rgba(255,255,255,0.6);font-weight:500;letter-spacing:0.05em;">
+    UNESCO World Heritage · Stari grad Kotor
+  </p>
+</td>
+</tr>
+
+<!-- MAIN CONTENT -->
+<tr>
+<td class="dm-content" style="background-color:#f8f6f2;padding:0;border-radius:0 0 16px 16px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+
+    <!-- Greeting -->
+    <tr>
+      <td style="padding:28px 28px 8px 28px;">
+        <p class="dm-text-primary" style="margin:0;font-size:15px;color:#444;line-height:1.6;">
+          Dragi/a <strong class="dm-text-primary" style="color:#1a1a2e;">${greeting}</strong>,
+        </p>
+        <p class="dm-text-secondary" style="margin:8px 0 0;font-size:14px;color:#666;line-height:1.6;">
+          ${esc(introText)}
+        </p>
+      </td>
+    </tr>
+
+    <!-- Tickets label -->
+    <tr>
+      <td style="padding:20px 28px 10px 28px;">
+        <p class="dm-text-muted" style="margin:0;font-size:10px;font-weight:700;letter-spacing:0.14em;color:#999;text-transform:uppercase;">Vaše ulaznice</p>
+      </td>
+    </tr>
+
+    ${ticketStubsHtml}
+
+    <!-- CTA Button -->
+    <tr>
+      <td style="padding:14px 28px 0 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td align="center" style="background-color:#1e3a8a;border-radius:10px;">
+              <a href="${esc(viewUrl)}" target="_blank" style="display:block;padding:15px 0;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;text-align:center;">Prikaži sve ulaznice →</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Price summary -->
+    <tr>
+      <td style="padding:20px 28px 0 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-card" style="background-color:#ffffff;border-radius:12px;border:1px solid rgba(0,0,0,0.06);">
+          <tr>
+            <td style="padding:18px 20px;">
+              <p class="dm-text-muted" style="margin:0 0 14px 0;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#999;text-transform:uppercase;">Rekapitulacija</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td class="dm-text-secondary" style="font-size:13px;color:#666;padding-bottom:12px;">${count} ${count === 1 ? "ulaznica" : "ulaznice"}</td>
+                  <td align="right" class="dm-text-primary" style="font-size:13px;color:#333;font-weight:500;padding-bottom:12px;">${fmtMoney(subtotal, cur)}</td>
+                </tr>
+                <tr>
+                  <td colspan="2" class="dm-divider" style="border-top:1px solid #f0ede8;padding-top:12px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td class="dm-text-primary" style="font-size:14px;font-weight:600;color:#1a1a2e;">Ukupno plaćeno</td>
+                        <td align="right" class="dm-price-value" style="font-size:20px;font-weight:700;color:#1a1a2e;">${fmtMoney(totalAmount, cur)}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Fiscal notice -->
+    <tr>
+      <td style="padding:12px 28px 0 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-fiscal" style="background-color:#f0fdf4;border-radius:8px;">
+          <tr>
+            <td style="padding:12px 14px;">
+              <p class="dm-fiscal" style="margin:0;font-size:12px;color:#166534;line-height:1.5;">
+                <span style="font-weight:600;">✓ Vaše karte su fiskalizovane.</span> Ako niste dobili račun, kontaktirajte nas na <a href="mailto:support@kotorwalls.com" style="color:#166534;font-weight:600;text-decoration:underline;">support@kotorwalls.com</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Right of withdrawal notice (ZZP CG 12/2026, čl. 119 st. 1 t. 12) -->
+    <tr>
+      <td style="padding:10px 28px 0 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-refund" style="background-color:#fefce8;border-radius:8px;">
+          <tr>
+            <td style="padding:12px 14px;">
+              <p class="dm-refund" style="margin:0 0 8px 0;font-size:12px;color:#854d0e;line-height:1.5;">
+                <strong>⚠️ Right of withdrawal (Art. 119 §1(12) MNE Consumer Protection Act 12/2026):</strong> Dated entrance tickets to a tourist attraction are a final purchase. You do not have the right to unilaterally withdraw from this contract within 14 days. Refunds apply only in case of attraction closure or force majeure.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Distance Sales Contract (čl. 109 ZZP CG) -->
+    <tr>
+      <td style="padding:12px 28px 0 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f9fafb;border:1px solid #d1d5db;border-radius:8px;">
+          <tr>
+            <td style="padding:12px 14px;">
+              <p style="margin:0 0 4px 0;font-size:12px;color:#111827;line-height:1.5;"><strong>📄 Distance Sales Contract (Art. 109 of the Act)</strong></p>
+              <p style="margin:0 0 10px 0;font-size:11px;color:#4b5563;line-height:1.5;">The official contract document with all legally required elements is available at the link below. You can print it or save it as PDF from your browser.</p>
+              <a href="${esc(`${SUPABASE_URL}/functions/v1/distance-contract?order_id=${orderId ?? ""}`)}" style="display:inline-block;padding:8px 14px;background:#1e3a8a;color:#ffffff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600;">Open distance sales contract →</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Prodavac & podrška -->
+    <tr>
+      <td style="padding:10px 28px 0 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#eff6ff;border-radius:8px;">
+          <tr>
+            <td style="padding:12px 14px;">
+              <p style="margin:0 0 6px 0;font-size:12px;color:#1e3a8a;line-height:1.5;">
+                <strong>Prodavac:</strong> Opština Kotor, Stari grad bb, 85330 Kotor, Crna Gora.
+              </p>
+              <p style="margin:0;font-size:12px;color:#1e3a8a;line-height:1.5;">
+                <strong>Podrška i prigovori:</strong> <a href="mailto:support@kotorwalls.com" style="color:#1e3a8a;text-decoration:underline;font-weight:500;">support@kotorwalls.com</a> · odgovor u roku od 8 dana.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Napomena o korišćenju -->
+    <tr>
+      <td style="padding:14px 28px 0 28px;">
+        <p style="margin:0;font-size:11px;color:#666;line-height:1.6;">
+          QR kod pokažite na automatskoj kapiji. Svaki QR se može iskoristiti samo jednom. Zidine se otvaraju u 08:00 — provjerite dnevne uslove pred posjetu.
+        </p>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td class="dm-footer-border" style="padding:24px 28px 6px 28px;border-top:1px solid #e5e0d8;margin-top:20px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td>
+              <p class="dm-text-muted" style="margin:0 0 2px 0;font-size:11px;color:#aaa;">Datum kupovine</p>
+              <p class="dm-text-secondary" style="margin:0;font-size:12px;color:#666;font-weight:500;">${new Date().toLocaleDateString("sr-ME")}</p>
+            </td>
+            <td align="right">
+              <p class="dm-text-muted" style="margin:0 0 2px 0;font-size:11px;color:#aaa;">Pitanja i podrška</p>
+              <a href="mailto:support@kotorwalls.com" class="dm-link" style="font-size:12px;color:#1e3a8a;font-weight:500;text-decoration:none;">support@kotorwalls.com</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Copyright -->
+    <tr>
+      <td style="padding:16px 28px 24px 28px;" align="center">
+        <p class="dm-text-muted" style="margin:0;font-size:10px;color:#ccc;letter-spacing:0.05em;">
+          © ${new Date().getFullYear()} Kotor Walls · Opština Kotor · Crna Gora
+        </p>
+      </td>
+    </tr>
+
+  </table>
+</td>
+</tr>
+
+</table>
+</td>
+</tr>
+</table>
+
 </body>
 </html>`;
 }
@@ -233,15 +488,20 @@ function renderEmailText(args: {
   currency: string;
 }): string {
   const lines = [
-    `Dear ${args.customerName || "guest"},`,
+    `Dragi/a ${args.customerName || "kupac"},`,
     "",
-    "Here are your tickets for the Kotor City Walls (UNESCO World Heritage Site).",
+    "Vaše karte za Kotorske gradske zidine (UNESCO svjetska baština) su spremne.",
     "",
-    ...args.tickets.map((t, i) => `Ticket ${i + 1}: ${t.qr_code ?? "—"}${t.category_name ? ` (${t.category_name})` : ""}`),
+    ...args.tickets.map((t, i) => `Ulaznica ${i + 1}: ${t.qr_code ?? "—"}${t.category_name ? ` (${t.category_name})` : ""}`),
     "",
   ];
-  if (args.total != null) lines.push(`Total paid: ${fmtMoney(args.total, args.currency)}`);
-  lines.push("", "Present the QR code at the automated gate.", "", "Kotor City Walls d.o.o. — support@kotorwalls.com");
+  if (args.total != null) lines.push(`Ukupno plaćeno: ${fmtMoney(args.total, args.currency)}`);
+  lines.push(
+    "",
+    "QR kod pokažite na automatskoj kapiji. Svaki QR se može iskoristiti samo jednom.",
+    "",
+    "Opština Kotor — support@kotorwalls.com",
+  );
   return lines.join("\n");
 }
 
