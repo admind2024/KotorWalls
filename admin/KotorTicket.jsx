@@ -384,44 +384,7 @@ export default function KotorTicket() {
   const [accepted, setAccepted] = useState(false);
   const [withdrawAck, setWithdrawAck] = useState(false);
 
-  const [zipLookup, setZipLookup] = useState({ loading: false, matches: [], error: null });
-
   const t = T[lang];
-
-  // ZIP → grad + država (Nominatim kroz našu edge funkciju). Auto-fill je samo
-  // sugestija — polja Grad i Država ostaju editabilna i kad lookup uspije.
-  useEffect(() => {
-    const zip = customer.zip?.trim();
-    if (!zip || zip.length < 3) {
-      setZipLookup({ loading: false, matches: [], error: null });
-      return;
-    }
-    let cancelled = false;
-    const run = async () => {
-      setZipLookup({ loading: true, matches: [], error: null });
-      try {
-        const res = await callEdge("lookup-zip", { zip });
-        if (cancelled) return;
-        const matches = res?.matches ?? [];
-        if (matches.length === 0) {
-          setZipLookup({ loading: false, matches: [], error: "not_found" });
-          return;
-        }
-        const first = matches[0];
-        setCustomer(c => ({ ...c, country: first.country_code, city: first.city || "" }));
-        setZipLookup({ loading: false, matches, error: null });
-      } catch (e) {
-        if (!cancelled) setZipLookup({ loading: false, matches: [], error: String(e.message ?? e) });
-      }
-    };
-    const tm = setTimeout(run, 450);
-    return () => { cancelled = true; clearTimeout(tm); };
-  }, [customer.zip]);
-
-  // Ručni izbor alternativnog match-a (chip ispod ZIP-a kad ima više rezultata)
-  const pickMatch = (m) => {
-    setCustomer(c => ({ ...c, country: m.country_code, city: m.city || "" }));
-  };
 
   useEffect(() => {
     (async () => {
