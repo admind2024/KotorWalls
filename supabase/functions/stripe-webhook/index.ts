@@ -220,7 +220,26 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
     });
   }
 
-  // TODO: fiskalni račun (CG ENU)
+  // Fiskalizacija (CG EFI/CIS) — non-blocking; status se vodi u orders.fiscal_status
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/fiscalize-order`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:  `Bearer ${SERVICE_ROLE}`,
+        apikey:         SERVICE_ROLE,
+      },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+    if (!r.ok) console.error("fiscalize failed:", r.status, await r.text());
+  } catch (e) {
+    console.error("fiscalize exception:", e);
+    await supabase.from("kotorwalls_audit_log").insert({
+      actor_type: "system", action: "fiscal.exception",
+      entity: "order", entity_id: orderId,
+      metadata: { error: String(e) },
+    });
+  }
 }
 
 async function onChargeRefunded(charge: Stripe.Charge) {
