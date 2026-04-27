@@ -340,6 +340,21 @@ function PaymentForm({ t, orderId, customer, canSubmit, onSuccess }) {
     }
   };
 
+  // Ako je Elements učitao stripe=null (publishable key fali), vidljiva poruka
+  // umjesto praznog razmaka i sivog Pay now dugmeta.
+  if (stripe === null) {
+    return (
+      <div style={{
+        padding: "14px 16px", borderRadius: 8,
+        background: C.primarySoft, border: "1px solid #F3CFCF",
+        color: C.primaryDark, fontSize: 13, fontWeight: 500, lineHeight: 1.55,
+      }}>
+        Stripe nije učitan ({getStripeMode().toUpperCase()} mod). Provjeri da je
+        publishable key postavljen u env varijablama, pa redeploy.
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit}>
       <div style={{ padding: 2 }}>
@@ -412,6 +427,17 @@ export default function KotorTicket() {
   const goToPayment = async () => {
     setCreating(true); setErr(null);
     try {
+      // Provjera publishable key-a PRIJE create-checkout-a — inače bi PaymentElement
+      // ostao prazan na koraku 3 (loadStripe(undefined) → null → useStripe = null).
+      const pk = getStripePublishableKey();
+      const mode = getStripeMode();
+      if (!pk) {
+        throw new Error(
+          mode === "test"
+            ? "Stripe TEST ključ nije konfigurisan. Dodaj VITE_STRIPE_PUBLISHABLE_KEY_TEST u .env (i Vercel env vars), pa redeploy."
+            : "Stripe LIVE ključ nije konfigurisan. Dodaj VITE_STRIPE_PUBLISHABLE_KEY u .env (i Vercel env vars), pa redeploy."
+        );
+      }
       const items = tickets.filter(tt => (qty[tt.id] ?? 0) > 0)
                           .map(tt => ({ category_code: tt.id, quantity: qty[tt.id] }));
       const res = await callEdge("create-checkout", { items, language: lang, channel: "web" });
