@@ -1575,42 +1575,69 @@ function Fiscal() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Posljednji fiskalni računi</div>
-            <div style={{ fontSize: 12, color: C.textSoft, marginTop: 2 }}>Zadnjih {recent.length} zapisa · klik na IIC otvara CIS verifikaciju</div>
+            <div style={{ fontSize: 12, color: C.textSoft, marginTop: 2 }}>Zadnjih {recent.length} zapisa · klik na "Pogledaj" otvara fiskalni račun sa svim podacima</div>
           </div>
         </div>
         {recent.length === 0 ? (
           <Empty title="Nema zapisa" sub="Fiskalni računi se pojavljuju nakon uspješne naplate." />
         ) : (
-          <Table head={["Vrijeme", "Kanal", "Br.", "Status", "IIC", "FIC", "Iznos", ""]}>
+          <Table head={["Vrijeme", "Kanal", "Br.", "Kupac", "Status", "IIC", "Iznos", ""]}>
             {recent.map(r => (
               <tr key={r.id}>
                 <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{fmtTime(r.created_at)}</td>
                 <td style={td}>{CHANNEL_LABEL[r.channel] ?? r.channel ?? "—"}</td>
                 <td style={{ ...td, fontFamily: "ui-monospace, monospace" }}>{r.invoice_ord_num ?? "—"}</td>
                 <td style={td}>
+                  {r.customer_name ? (
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.customer_name}</div>
+                      {r.customer_email && (
+                        <div style={{ fontSize: 11, color: C.textSoft, marginTop: 1 }}>{r.customer_email}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ color: C.textFaint }}>—</span>
+                  )}
+                </td>
+                <td style={td}>
                   {r.status === "succeeded" && <Badge tone="success">OK</Badge>}
                   {r.status === "failed"    && <Badge tone="danger" title={r.error}>FAIL</Badge>}
                   {r.status === "pending"   && <Badge tone="warning">…</Badge>}
                 </td>
                 <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 11 }}>
-                  {r.qr_url
-                    ? <a href={r.qr_url} target="_blank" rel="noopener noreferrer" style={{ color: C.primary, textDecoration: "none" }}>{r.ikof ? `${r.ikof.slice(0,12)}…` : "—"}</a>
-                    : (r.ikof ? `${r.ikof.slice(0,12)}…` : "—")}
+                  {r.ikof ? `${r.ikof.slice(0,12)}…` : "—"}
                 </td>
-                <td style={{ ...td, fontFamily: "ui-monospace, monospace", fontSize: 11 }}>{r.jikr ? `${r.jikr.slice(0,12)}…` : "—"}</td>
                 <td style={{ ...td, fontWeight: 600 }}>{money(r.total)}</td>
                 <td style={td}>
-                  {r.status === "failed" && (
-                    <button
-                      onClick={() => retry(r.order_id)}
-                      disabled={retryingId === r.order_id}
-                      style={{
-                        padding: "4px 10px", fontSize: 11, fontWeight: 600,
-                        background: retryingId === r.order_id ? C.borderSoft : C.primary, color: "#fff",
-                        border: "none", borderRadius: 5, cursor: retryingId === r.order_id ? "wait" : "pointer",
-                        fontFamily: "inherit",
-                      }}>{retryingId === r.order_id ? "…" : "Retry"}</button>
-                  )}
+                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    {r.status === "succeeded" && r.order_id && (
+                      <a
+                        href={`/racun?order=${r.order_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Otvori fiskalni račun"
+                        style={{
+                          padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                          background: C.surface, color: C.primary,
+                          border: `1px solid ${C.primary}`, borderRadius: 5,
+                          textDecoration: "none", fontFamily: "inherit",
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                        }}>
+                        Pogledaj
+                      </a>
+                    )}
+                    {r.status === "failed" && (
+                      <button
+                        onClick={() => retry(r.order_id)}
+                        disabled={retryingId === r.order_id}
+                        style={{
+                          padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                          background: retryingId === r.order_id ? C.borderSoft : C.primary, color: "#fff",
+                          border: "none", borderRadius: 5, cursor: retryingId === r.order_id ? "wait" : "pointer",
+                          fontFamily: "inherit",
+                        }}>{retryingId === r.order_id ? "…" : "Retry"}</button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

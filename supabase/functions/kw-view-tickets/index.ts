@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
     const { data: order } = await supabase
       .from("kotorwalls_orders")
-      .select("id, customer_email, customer_name, total, currency, language, paid_at, payment_status, created_at")
+      .select("id, customer_email, customer_name, customer_phone, customer_country, total, subtotal, service_fee, currency, language, paid_at, payment_status, created_at, channel, fiscal_status, fiscal_ikof, fiscal_jikr, metadata")
       .eq("id", orderId)
       .single();
 
@@ -60,9 +60,33 @@ Deno.serve(async (req) => {
       .eq("order_id", orderId)
       .order("issued_at", { ascending: true });
 
+    // Fiscal podaci — uspješan zapis za ovaj order (ako postoji)
+    let fiscal = null as any;
+    let seller = null as any;
+    if (order?.fiscal_status === "fiscalized") {
+      const { data: fiscalRow } = await supabase
+        .from("kotorwalls_fiscal_invoices")
+        .select("ikof, jikr, qr_url, invoice_ord_num, issue_dt, tcr_code, iic_signature, issued_at")
+        .eq("order_id", orderId)
+        .eq("status", "succeeded")
+        .order("issued_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      fiscal = fiscalRow ?? null;
+
+      const { data: cfg } = await supabase
+        .from("kotorwalls_fiscal_config")
+        .select("seller_name, seller_tin, business_unit_code, business_unit_address, business_unit_town, default_vat_rate, is_issuer_in_vat, is_production")
+        .eq("id", 1)
+        .maybeSingle();
+      seller = cfg ?? null;
+    }
+
     return json({
       order,
       tickets: tickets ?? [],
+      fiscal,
+      seller,
       venue:   "Kotor City Walls — UNESCO World Heritage",
       event:   "KOTOR WALLS",
     });

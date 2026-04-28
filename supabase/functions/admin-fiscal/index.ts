@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
         .lte("created_at", to)
         .order("created_at", { ascending: false }),
       supabase.from("kotorwalls_orders")
-        .select("id, channel, total, currency, payment_status, fiscal_status, created_at")
+        .select("id, channel, total, currency, payment_status, fiscal_status, created_at, customer_name, customer_email")
         .gte("created_at", from)
         .lte("created_at", to),
     ]);
@@ -100,13 +100,15 @@ Deno.serve(async (req) => {
       .sort((a, b) => (b.succeeded + b.failed + b.pending) - (a.succeeded + a.failed + a.pending))
       .map(r => ({ ...r, amount: round2(r.amount) }));
 
-    // recent (zadnjih 50, sa channel iz orders)
+    // recent (zadnjih 50, sa channel + customer iz orders)
     const recent = invs.slice(0, 50).map(i => {
       const ord = orderMap.get(i.order_id);
       return {
         id: i.id,
         order_id: i.order_id,
         channel: ord?.channel ?? null,
+        customer_name:  ord?.customer_name  ?? null,
+        customer_email: ord?.customer_email ?? null,
         total: num(ord?.total),
         currency: ord?.currency ?? "EUR",
         status: i.status,

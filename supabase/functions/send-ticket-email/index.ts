@@ -49,10 +49,13 @@ Deno.serve(async (req) => {
     let language     = body.language ?? "en";
     let orderId      = body.order_id ?? null;
 
+    let fiscalIkof: string | null = null;
+    let isFiscalized = false;
+
     if (orderId) {
       const { data: order } = await supabase
         .from("kotorwalls_orders")
-        .select("id, customer_name, customer_email, total, currency, language")
+        .select("id, customer_name, customer_email, total, currency, language, fiscal_status, fiscal_ikof")
         .eq("id", orderId)
         .single();
       if (!order) return json({ error: "order not found" }, 404);
@@ -62,6 +65,8 @@ Deno.serve(async (req) => {
       orderTotal     = orderTotal     ?? order.total;
       orderCurrency  = orderCurrency  || order.currency || "EUR";
       language       = language       || order.language || "en";
+      isFiscalized   = order.fiscal_status === "fiscalized";
+      fiscalIkof     = order.fiscal_ikof ?? null;
 
       const { data: ts } = await supabase
         .from("kotorwalls_tickets")
@@ -90,6 +95,8 @@ Deno.serve(async (req) => {
       isReminder,
       isResend,
       orderId,
+      isFiscalized,
+      fiscalIkof,
     });
 
     const textBody = renderEmailText({
@@ -132,8 +139,10 @@ function renderEmailHtml(args: {
   isReminder: boolean;
   isResend: boolean;
   orderId: string | null;
+  isFiscalized: boolean;
+  fiscalIkof: string | null;
 }): string {
-  const { customerName, tickets, total, currency, isReminder, isResend, orderId } = args;
+  const { customerName, tickets, total, currency, isReminder, isResend, orderId, isFiscalized, fiscalIkof } = args;
   const count   = tickets.length;
   const viewUrl = orderId ? `${TICKETS_URL}?order=${orderId}` : TICKETS_URL;
   const orderRef = orderId ? orderId.slice(0, 8).toUpperCase() : "—";
@@ -369,20 +378,44 @@ body,.dm-body{background-color:#1a1a2e!important}
       </td>
     </tr>
 
-    <!-- Fiscal notice -->
-    <tr>
+    <!-- Fiscal receipt block — link na fiskalni račun (CG CIS) -->
+    ${isFiscalized && orderId ? `<tr>
+      <td style="padding:12px 28px 0 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-fiscal" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
+          <tr>
+            <td style="padding:14px 16px;">
+              <p class="dm-fiscal" style="margin:0 0 4px 0;font-size:13px;color:#166534;line-height:1.5;font-weight:700;">
+                ✓ Fiskalni račun
+              </p>
+              <p class="dm-fiscal" style="margin:0 0 12px 0;font-size:12px;color:#166534;line-height:1.5;">
+                Vaš fiskalni račun je registrovan u Crnogorskom poreskom sistemu (CIS).${fiscalIkof ? ` IKOF: <span style="font-family:monospace;">${esc(fiscalIkof.slice(0, 16))}…</span>` : ""}
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color:#166534;border-radius:8px;">
+                    <a href="https://www.kotorwalls.com/racun?order=${esc(orderId)}" target="_blank" style="display:inline-block;padding:10px 18px;font-size:13px;font-weight:600;color:#ffffff;text-decoration:none;">
+                      📄 Preuzmite račun →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>` : (orderId ? `<tr>
       <td style="padding:12px 28px 0 28px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-fiscal" style="background-color:#f0fdf4;border-radius:8px;">
           <tr>
             <td style="padding:12px 14px;">
               <p class="dm-fiscal" style="margin:0;font-size:12px;color:#166534;line-height:1.5;">
-                <span style="font-weight:600;">✓ Vaše karte su fiskalizovane.</span> Ako niste dobili račun, kontaktirajte nas na <a href="mailto:support@kotorwalls.com" style="color:#166534;font-weight:600;text-decoration:underline;">support@kotorwalls.com</a>
+                <span style="font-weight:600;">✓ Plaćanje primljeno.</span> Fiskalni račun će biti dostupan u kratkom roku. Pišite na <a href="mailto:support@kotorwalls.com" style="color:#166534;font-weight:600;text-decoration:underline;">support@kotorwalls.com</a> ako vam ne stigne za 1h.
               </p>
             </td>
           </tr>
         </table>
       </td>
-    </tr>
+    </tr>` : "")}
 
     <!-- Right of withdrawal notice (ZZP CG 12/2026, čl. 119 st. 1 t. 12) -->
     <tr>

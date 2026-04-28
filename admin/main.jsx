@@ -5,6 +5,7 @@ import KotorAdmin from "./KotorAdmin.jsx";
 import KotorTicket from "./KotorTicket.jsx";
 import KotorTicketsDisplay from "./KotorTicketsDisplay.jsx";
 import KotorContract from "./KotorContract.jsx";
+import KotorReceipt from "./KotorReceipt.jsx";
 import { getStripeMode } from "./supabaseClient.js";
 
 // ─── Test mode banner ───────────────────────────────────────────────────────
@@ -147,8 +148,9 @@ function Switcher() {
   const isAdmin    = clean === "/admin"   || hash.startsWith("#admin");
   const isTickets  = clean === "/tickets" || clean === "/karte" || hash.startsWith("#tickets");
   const isContract = clean.startsWith("/ugovor-na-daljinu") || hash.startsWith("#ugovor-na-daljinu");
+  const isReceipt  = clean === "/racun" || clean === "/receipt" || hash.startsWith("#racun");
   // Default = buy widget
-  const isBuy      = !isAdmin && !isTickets && !isContract;
+  const isBuy      = !isAdmin && !isTickets && !isContract && !isReceipt;
 
   return (
     <>
@@ -157,6 +159,7 @@ function Switcher() {
       {isAdmin    && <AdminGate />}
       {isTickets  && <KotorTicketsDisplay />}
       {isContract && <KotorContract />}
+      {isReceipt  && <KotorReceipt />}
       {isBuy      && <KotorTicket />}
 
       {/* Vercel Web Analytics — broji posjete i page views. Vidiš podatke
