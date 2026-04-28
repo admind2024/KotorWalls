@@ -31,3 +31,14 @@ verify_jwt = false
 
 [functions.kw-view-tickets]
 verify_jwt = false
+
+# Pozivane interno iz stripe-webhook / admin-fiscal — verifikaciju radi
+# admin login (KotorAdmin sessionStorage), ne treba ovdje.
+[functions.send-ticket-email]
+verify_jwt = false
+
+[functions.fiscalize-order]
+verify_jwt = false
+
+[functions.admin-fiscal]
+verify_jwt = false

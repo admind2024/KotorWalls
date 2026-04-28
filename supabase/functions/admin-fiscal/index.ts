@@ -103,7 +103,8 @@ Deno.serve(async (req) => {
       .sort((a, b) => (b.succeeded + b.failed + b.pending) - (a.succeeded + a.failed + a.pending))
       .map(r => ({ ...r, amount: round2(r.amount) }));
 
-    // recent (zadnjih 50, sa channel + customer iz orders)
+    // recent — uspješni/neuspješni iz fiscal_invoices + paid orders bez fiscal
+    // record-a (pending) da admin može retry-ovati zaglavljene narudžbine.
     const recent = invs.slice(0, 50).map(i => {
       const ord = orderMap.get(i.order_id);
       return {
@@ -125,6 +126,31 @@ Deno.serve(async (req) => {
         created_at: i.created_at,
       };
     });
+
+    // Dodaj paid orders bez fiscal record-a (status=pending) — da se vide u tabeli
+    const fiscalOrderIds = new Set(invs.map(i => i.order_id));
+    for (const o of orders) {
+      if (o.payment_status !== "paid") continue;
+      if (fiscalOrderIds.has(o.id)) continue;
+      if (o.fiscal_status === "fiscalized") continue;
+      recent.push({
+        id: `pending-${o.id}`,
+        order_id: o.id,
+        channel: o.channel ?? null,
+        customer_name:  o.customer_name  ?? null,
+        customer_email: o.customer_email ?? null,
+        total: num(o.total),
+        currency: o.currency ?? "EUR",
+        status: "pending",
+        error: null,
+        ikof: null, jikr: null, qr_url: null,
+        invoice_ord_num: null,
+        tcr_code: null,
+        issued_at: null,
+        created_at: o.created_at,
+      });
+    }
+    recent.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 
     return json({
       summary: {

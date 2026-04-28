@@ -1626,16 +1626,17 @@ function Fiscal() {
                         Pogledaj
                       </a>
                     )}
-                    {r.status === "failed" && (
+                    {(r.status === "failed" || r.status === "pending") && (
                       <button
                         onClick={() => retry(r.order_id)}
                         disabled={retryingId === r.order_id}
+                        title={r.status === "pending" ? "Pošalji u fiskalizaciju" : "Pokušaj ponovo"}
                         style={{
                           padding: "4px 10px", fontSize: 11, fontWeight: 600,
                           background: retryingId === r.order_id ? C.borderSoft : C.primary, color: "#fff",
                           border: "none", borderRadius: 5, cursor: retryingId === r.order_id ? "wait" : "pointer",
                           fontFamily: "inherit",
-                        }}>{retryingId === r.order_id ? "…" : "Retry"}</button>
+                        }}>{retryingId === r.order_id ? "…" : (r.status === "pending" ? "Fiskalizuj" : "Retry")}</button>
                     )}
                   </div>
                 </td>
