@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toJpeg } from "html-to-image";
 import { SUPABASE_URL } from "./supabaseClient.js";
 
 // ─── Kotor paleta ────────────────────────────────────────────────────────────
@@ -30,7 +31,7 @@ const T = {
     notFound:   "No tickets found",
     notFoundSub:"Please check the link or contact support@kotorwalls.com",
     print:      "Print tickets",
-    download:   "Save as PDF",
+    download:   "Save as image",
   },
   me: {
     title:      "Tvoje karte",
@@ -50,11 +51,11 @@ const T = {
     notFound:   "Karte nisu pronađene",
     notFoundSub:"Provjeri link ili piši na support@kotorwalls.com",
     print:      "Odštampaj karte",
-    download:   "Sačuvaj kao PDF",
+    download:   "Sačuvaj kao slika",
   },
-  de: { title: "Ihre Tickets", subtitle: "Stadtmauern von Kotor · UNESCO-Welterbe", ticketOf: (i,n) => `Ticket ${i} von ${n}`, category: "Kategorie", price: "Preis", issued: "Ausgestellt", status: "Status", valid: "Gültig", used: "Benutzt", refunded: "Erstattet", instruct: "Zeigen Sie den QR-Code am Eingang vor. Der Scanner validiert automatisch.", orderRef: "Bestellnummer", customer: "Kunde", loading: "Laden…", notFound: "Keine Tickets gefunden", notFoundSub: "Bitte Link prüfen oder support@kotorwalls.com kontaktieren", print: "Drucken", download: "Als PDF speichern" },
-  ru: { title: "Ваши билеты", subtitle: "Городские стены Котора · Объект ЮНЕСКО", ticketOf: (i,n) => `Билет ${i} из ${n}`, category: "Категория", price: "Цена", issued: "Выдан", status: "Статус", valid: "Действителен", used: "Использован", refunded: "Возврат", instruct: "Покажите QR-код на входе. Сканер у стен проверит автоматически.", orderRef: "Номер заказа", customer: "Клиент", loading: "Загрузка…", notFound: "Билеты не найдены", notFoundSub: "Проверьте ссылку или напишите на support@kotorwalls.com", print: "Распечатать", download: "Сохранить как PDF" },
-  zh: { title: "您的门票", subtitle: "科托尔城墙 · 联合国教科文组织世界遗产", ticketOf: (i,n) => `第 ${i} / ${n} 张`, category: "类别", price: "价格", issued: "签发时间", status: "状态", valid: "有效", used: "已使用", refunded: "已退款", instruct: "在入口处出示此QR码。城墙扫描器会自动验证。", orderRef: "订单号", customer: "客户", loading: "加载中…", notFound: "未找到门票", notFoundSub: "请检查链接或联系 support@kotorwalls.com", print: "打印门票", download: "保存为PDF" },
+  de: { title: "Ihre Tickets", subtitle: "Stadtmauern von Kotor · UNESCO-Welterbe", ticketOf: (i,n) => `Ticket ${i} von ${n}`, category: "Kategorie", price: "Preis", issued: "Ausgestellt", status: "Status", valid: "Gültig", used: "Benutzt", refunded: "Erstattet", instruct: "Zeigen Sie den QR-Code am Eingang vor. Der Scanner validiert automatisch.", orderRef: "Bestellnummer", customer: "Kunde", loading: "Laden…", notFound: "Keine Tickets gefunden", notFoundSub: "Bitte Link prüfen oder support@kotorwalls.com kontaktieren", print: "Drucken", download: "Als Bild speichern" },
+  ru: { title: "Ваши билеты", subtitle: "Городские стены Котора · Объект ЮНЕСКО", ticketOf: (i,n) => `Билет ${i} из ${n}`, category: "Категория", price: "Цена", issued: "Выдан", status: "Статус", valid: "Действителен", used: "Использован", refunded: "Возврат", instruct: "Покажите QR-код на входе. Сканер у стен проверит автоматически.", orderRef: "Номер заказа", customer: "Клиент", loading: "Загрузка…", notFound: "Билеты не найдены", notFoundSub: "Проверьте ссылку или напишите на support@kotorwalls.com", print: "Распечатать", download: "Сохранить как изображение" },
+  zh: { title: "您的门票", subtitle: "科托尔城墙 · 联合国教科文组织世界遗产", ticketOf: (i,n) => `第 ${i} / ${n} 张`, category: "类别", price: "价格", issued: "签发时间", status: "状态", valid: "有效", used: "已使用", refunded: "已退款", instruct: "在入口处出示此QR码。城墙扫描器会自动验证。", orderRef: "订单号", customer: "客户", loading: "加载中…", notFound: "未找到门票", notFoundSub: "请检查链接或联系 support@kotorwalls.com", print: "打印门票", download: "保存为图片" },
 };
 
 const LANGS = [
@@ -148,6 +149,46 @@ export default function KotorTicketsDisplay() {
     return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   };
 
+  // ─── JPG download — html-to-image renderuje karticu u 2x rezoluciji ─────────
+  const cardRefs = useRef({});
+  const [busy, setBusy] = useState(false);
+
+  const downloadOne = async (ticketId, idx, total) => {
+    const node = cardRefs.current[ticketId];
+    if (!node) return;
+    const dataUrl = await toJpeg(node, {
+      quality: 0.95,
+      pixelRatio: 2,
+      backgroundColor: "#ffffff",
+      cacheBust: true,
+      style: { boxShadow: "none" },
+    });
+    const link = document.createElement("a");
+    link.download = total > 1 ? `kotor-walls-karta-${idx + 1}.jpg` : "kotor-walls-karta.jpg";
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadAll = async () => {
+    if (!data?.tickets?.length) return;
+    setBusy(true);
+    try {
+      for (let i = 0; i < data.tickets.length; i++) {
+        const tk = data.tickets[i];
+        await downloadOne(tk.id, i, data.tickets.length);
+        // Mali razmak izmedju download-a (browser-i ponekad batchuju)
+        await new Promise(r => setTimeout(r, 250));
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Greška pri snimanju. Pokušajte ponovo.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div style={{
       minHeight: "100vh", background: C.bg,
@@ -225,15 +266,20 @@ export default function KotorTicketsDisplay() {
             {/* Tickets — kompaktna kartica veličine telefona, sve u jednoj kutiji */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
               {data.tickets.map((ticket, i) => (
-                <div key={ticket.id} className="ticket-card" style={{
-                  width: "100%", maxWidth: 320,
-                  background: C.surface, borderRadius: 14,
-                  border: `1px solid ${C.border}`,
-                  overflow: "hidden",
-                  boxShadow: "0 4px 14px rgba(26,31,43,0.06)",
-                  pageBreakInside: "avoid",
-                  breakInside: "avoid",
-                }}>
+                <div
+                  key={ticket.id}
+                  ref={el => { if (el) cardRefs.current[ticket.id] = el; }}
+                  className="ticket-card"
+                  style={{
+                    width: "100%", maxWidth: 320,
+                    background: C.surface, borderRadius: 14,
+                    border: `1px solid ${C.border}`,
+                    overflow: "hidden",
+                    boxShadow: "0 4px 14px rgba(26,31,43,0.06)",
+                    pageBreakInside: "avoid",
+                    breakInside: "avoid",
+                  }}
+                >
                   {/* Gradient stripe */}
                   <div style={{ height: 3, background: `linear-gradient(90deg, ${C.gold} 0%, ${C.primary} 100%)` }} />
 
@@ -275,6 +321,7 @@ export default function KotorTicketsDisplay() {
                       }}>
                         {ticket.qr_image_url ? (
                           <img src={ticket.qr_image_url} alt="QR"
+                               crossOrigin="anonymous"
                                style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                         ) : (
                           <div style={{ color: C.textFaint, fontSize: 11, textAlign: "center" }}>
@@ -353,18 +400,23 @@ export default function KotorTicketsDisplay() {
 
             {/* Actions */}
             <div className="no-print" style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
-              <button onClick={() => window.print()} style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                padding: "12px 24px", background: C.primary, color: "#fff",
-                border: "none", borderRadius: 10,
-                fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                boxShadow: "0 2px 6px rgba(178,58,58,0.25)",
-              }}>
+              <button
+                onClick={downloadAll}
+                disabled={busy}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  padding: "12px 24px",
+                  background: busy ? C.borderSoft : C.primary, color: busy ? C.textMuted : "#fff",
+                  border: "none", borderRadius: 10,
+                  fontSize: 13, fontWeight: 700,
+                  cursor: busy ? "wait" : "pointer", fontFamily: "inherit",
+                  boxShadow: busy ? "none" : "0 2px 6px rgba(178,58,58,0.25)",
+                }}>
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
                 </svg>
-                {t.download}
+                {busy ? "…" : (t.download + (data.tickets.length > 1 ? ` (${data.tickets.length})` : ""))}
               </button>
             </div>
 
