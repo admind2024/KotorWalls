@@ -392,41 +392,48 @@ export default function KotorReceipt() {
                 </div>
               )}
 
-              {/* CIS verify QR */}
+              {/* CIS verify QR — veliki za skeniranje, suptilni link umjesto sirovog URL-a */}
               {fiscal?.qr_url && (
                 <div style={{
-                  marginTop: 14, display: "flex", gap: 14,
-                  alignItems: "center", padding: "12px 14px",
+                  marginTop: 16,
+                  padding: "14px 14px 12px",
                   background: C.surface, border: `1px solid ${C.border}`,
                   borderRadius: 10,
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
                 }}>
                   <div style={{
-                    width: 90, height: 90, flexShrink: 0,
+                    fontSize: 10, fontWeight: 700, color: C.textSoft,
+                    letterSpacing: 0.6, textTransform: "uppercase",
+                  }}>
+                    {t.verifyCis}
+                  </div>
+                  <div style={{
+                    width: 180, height: 180,
                     background: "#fff", border: `1px solid ${C.border}`,
-                    borderRadius: 8, padding: 4,
+                    borderRadius: 10, padding: 6,
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(fiscal.qr_url)}`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(fiscal.qr_url)}`}
                       alt="CIS verify QR"
                       style={{ width: "100%", height: "100%", objectFit: "contain" }}
                     />
                   </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{t.verifyCis}</div>
-                    <a
-                      href={fiscal.qr_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "inline-block", marginTop: 4,
-                        fontSize: 11, color: C.primary, fontFamily: "ui-monospace, monospace",
-                        wordBreak: "break-all", textDecoration: "underline",
-                      }}
-                    >
-                      {fiscal.qr_url}
-                    </a>
-                  </div>
+                  <a
+                    href={fiscal.qr_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "5px 10px", marginTop: 2,
+                      fontSize: 11, color: C.textMuted,
+                      background: C.bg, border: `1px solid ${C.borderSoft}`,
+                      borderRadius: 6,
+                      textDecoration: "none", fontWeight: 600,
+                    }}
+                  >
+                    {t.verifyCis} →
+                  </a>
                 </div>
               )}
 
@@ -468,10 +475,25 @@ export default function KotorReceipt() {
 
       <style>{`
         @media print {
-          html, body { background: #fff !important; }
+          html, body {
+            background: #fff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           .no-print { display: none !important; }
-          @page { size: A4 portrait; margin: 14mm; }
-          .receipt { box-shadow: none !important; border: 1px solid #ddd !important; }
+          @page {
+            size: A4 portrait;
+            margin: 12mm;
+          }
+          .receipt {
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          /* Sažima vertikalna razmaka da sve stane na jednu stranu */
+          .receipt > div:last-child > * { margin-top: 8px !important; padding-top: 8px !important; }
+          .receipt h1 { font-size: 18px !important; }
         }
       `}</style>
     </div>

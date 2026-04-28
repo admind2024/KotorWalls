@@ -199,7 +199,9 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
     },
   });
 
-  // Pošalji email sa QR kartama — ne blokira webhook ako padne
+  // Pošalji email sa QR kartama — ne blokira webhook ako padne.
+  // VAŽNO: bilo non-2xx odgovor bilo exception → audit log entry, da se
+  // u admin panelu vidi šta se desilo (ranije se loglo samo na konzolu).
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/send-ticket-email`, {
       method: "POST",
@@ -210,17 +212,26 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
       },
       body: JSON.stringify({ order_id: orderId, reason: "purchase" }),
     });
-    if (!r.ok) console.error("email send failed:", r.status, await r.text());
+    if (!r.ok) {
+      const errBody = await r.text();
+      console.error("email send failed:", r.status, errBody);
+      await supabase.from("kotorwalls_audit_log").insert({
+        actor_type: "system", action: "email.ticket_failed",
+        entity: "order", entity_id: orderId,
+        metadata: { http_status: r.status, error: errBody.slice(0, 500) },
+      });
+    }
   } catch (e) {
     console.error("email send exception:", e);
     await supabase.from("kotorwalls_audit_log").insert({
       actor_type: "system", action: "email.ticket_failed",
       entity: "order", entity_id: orderId,
-      metadata: { error: String(e) },
+      metadata: { error: String(e), exception: true },
     });
   }
 
-  // Fiskalizacija (CG EFI/CIS) — non-blocking; status se vodi u orders.fiscal_status
+  // Fiskalizacija (CG EFI/CIS) — non-blocking; status se vodi u orders.fiscal_status.
+  // Audit log za bilo non-2xx bilo exception, da se u admin panelu vidi šta se desilo.
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/fiscalize-order`, {
       method: "POST",
@@ -231,13 +242,21 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
       },
       body: JSON.stringify({ order_id: orderId }),
     });
-    if (!r.ok) console.error("fiscalize failed:", r.status, await r.text());
+    if (!r.ok) {
+      const errBody = await r.text();
+      console.error("fiscalize failed:", r.status, errBody);
+      await supabase.from("kotorwalls_audit_log").insert({
+        actor_type: "system", action: "fiscal.exception",
+        entity: "order", entity_id: orderId,
+        metadata: { http_status: r.status, error: errBody.slice(0, 500) },
+      });
+    }
   } catch (e) {
     console.error("fiscalize exception:", e);
     await supabase.from("kotorwalls_audit_log").insert({
       actor_type: "system", action: "fiscal.exception",
       entity: "order", entity_id: orderId,
-      metadata: { error: String(e) },
+      metadata: { error: String(e), exception: true },
     });
   }
 }

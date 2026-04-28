@@ -378,23 +378,23 @@ body,.dm-body{background-color:#1a1a2e!important}
       </td>
     </tr>
 
-    <!-- Fiscal receipt block — link na fiskalni račun (CG CIS) -->
+    <!-- Fiscal receipt block — link to CIS-verified fiscal receipt -->
     ${isFiscalized && orderId ? `<tr>
       <td style="padding:12px 28px 0 28px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-fiscal" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
           <tr>
             <td style="padding:14px 16px;">
               <p class="dm-fiscal" style="margin:0 0 4px 0;font-size:13px;color:#166534;line-height:1.5;font-weight:700;">
-                ✓ Fiskalni račun
+                ✓ Fiscal receipt
               </p>
               <p class="dm-fiscal" style="margin:0 0 12px 0;font-size:12px;color:#166534;line-height:1.5;">
-                Vaš fiskalni račun je registrovan u Crnogorskom poreskom sistemu (CIS).${fiscalIkof ? ` IKOF: <span style="font-family:monospace;">${esc(fiscalIkof.slice(0, 16))}…</span>` : ""}
+                Your fiscal receipt has been registered with the Montenegro tax system (CIS).${fiscalIkof ? ` IIC: <span style="font-family:monospace;">${esc(fiscalIkof.slice(0, 16))}…</span>` : ""}
               </p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="background-color:#166534;border-radius:8px;">
                     <a href="https://www.kotorwalls.com/racun?order=${esc(orderId)}" target="_blank" style="display:inline-block;padding:10px 18px;font-size:13px;font-weight:600;color:#ffffff;text-decoration:none;">
-                      📄 Preuzmite račun →
+                      📄 Download receipt →
                     </a>
                   </td>
                 </tr>
@@ -409,7 +409,7 @@ body,.dm-body{background-color:#1a1a2e!important}
           <tr>
             <td style="padding:12px 14px;">
               <p class="dm-fiscal" style="margin:0;font-size:12px;color:#166534;line-height:1.5;">
-                <span style="font-weight:600;">✓ Plaćanje primljeno.</span> Fiskalni račun će biti dostupan u kratkom roku. Pišite na <a href="mailto:support@kotorwalls.com" style="color:#166534;font-weight:600;text-decoration:underline;">support@kotorwalls.com</a> ako vam ne stigne za 1h.
+                <span style="font-weight:600;">✓ Payment received.</span> Your fiscal receipt will be available shortly. Contact <a href="mailto:support@kotorwalls.com" style="color:#166534;font-weight:600;text-decoration:underline;">support@kotorwalls.com</a> if it does not arrive within 1 hour.
               </p>
             </td>
           </tr>
