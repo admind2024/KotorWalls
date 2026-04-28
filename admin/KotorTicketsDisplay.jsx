@@ -241,124 +241,100 @@ export default function KotorTicketsDisplay() {
               </div>
             </div>
 
-            {/* Tickets — portrait layout, optimizovan za mobilni telefon */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 18, alignItems: "center" }}>
+            {/* Tickets — kompaktna kartica veličine telefona, sve u jednoj kutiji */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
               {data.tickets.map((ticket, i) => (
                 <div key={ticket.id} style={{
-                  width: "100%", maxWidth: 360,
-                  background: C.surface, borderRadius: 16,
+                  width: "100%", maxWidth: 300,
+                  background: C.surface, borderRadius: 14,
                   border: `1px solid ${C.border}`,
                   overflow: "hidden",
-                  boxShadow: "0 6px 20px rgba(26,31,43,0.06), 0 1px 3px rgba(26,31,43,0.04)",
-                  position: "relative",
+                  boxShadow: "0 4px 14px rgba(26,31,43,0.06)",
                   pageBreakInside: "avoid",
                   breakInside: "avoid",
                 }}>
                   {/* Gradient stripe */}
-                  <div style={{ height: 4, background: `linear-gradient(90deg, ${C.gold} 0%, ${C.primary} 100%)` }} />
+                  <div style={{ height: 3, background: `linear-gradient(90deg, ${C.gold} 0%, ${C.primary} 100%)` }} />
 
-                  {/* Top: ticket # + UNESCO mini badge */}
-                  <div style={{
-                    padding: "14px 18px 0",
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                  }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, letterSpacing: 0.6, textTransform: "uppercase" }}>
-                      {t.ticketOf(i + 1, data.tickets.length)}
-                    </div>
-                    <StatusBadge status={ticket.status} t={t} />
-                  </div>
-
-                  {/* Category — najveći i najbitniji element */}
-                  <div style={{
-                    padding: "8px 18px 16px",
-                    textAlign: "center",
-                  }}>
+                  <div style={{ padding: "12px 14px 14px" }}>
+                    {/* Top row: ticket # + status */}
                     <div style={{
-                      fontSize: 22, fontWeight: 800, color: C.text,
-                      letterSpacing: "-0.4px", lineHeight: 1.2,
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      marginBottom: 8,
                     }}>
-                      {ticket.category_name}
+                      <div style={{
+                        fontSize: 9.5, fontWeight: 700, color: C.textFaint,
+                        letterSpacing: 0.6, textTransform: "uppercase",
+                      }}>
+                        {t.ticketOf(i + 1, data.tickets.length)}
+                      </div>
+                      <StatusBadge status={ticket.status} t={t} />
                     </div>
+
+                    {/* Kategorija + cijena */}
+                    <div style={{ textAlign: "center", marginBottom: 10 }}>
+                      <div style={{
+                        fontSize: 17, fontWeight: 800, color: C.text,
+                        letterSpacing: "-0.3px", lineHeight: 1.2,
+                      }}>
+                        {ticket.category_name}
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, marginTop: 2 }}>
+                        €{Number(ticket.price ?? 0).toFixed(2)}
+                      </div>
+                    </div>
+
+                    {/* QR */}
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+                      <div style={{
+                        width: 170, height: 170,
+                        background: C.surface, border: `1px solid ${C.border}`,
+                        borderRadius: 10, padding: 7,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {ticket.qr_image_url ? (
+                          <img src={ticket.qr_image_url} alt="QR"
+                               style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                        ) : (
+                          <div style={{ color: C.textFaint, fontSize: 11, textAlign: "center" }}>
+                            QR<br/>pending
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* QR ID — monospace, mali */}
                     <div style={{
-                      fontSize: 13, fontWeight: 700, color: C.primary, marginTop: 4,
+                      fontFamily: "ui-monospace, monospace",
+                      fontSize: 9.5, color: C.textMuted,
+                      textAlign: "center", letterSpacing: 0.3,
+                      wordBreak: "break-all", marginBottom: 10,
                     }}>
-                      €{Number(ticket.price ?? 0).toFixed(2)}
+                      {ticket.qr_code}
                     </div>
-                  </div>
 
-                  {/* QR — centriran, veliki */}
-                  <div style={{
-                    display: "flex", justifyContent: "center",
-                    padding: "0 18px 14px",
-                  }}>
+                    {/* Detalji — kompaktan red */}
                     <div style={{
-                      width: 220, height: 220,
-                      background: C.surface, border: `1px solid ${C.border}`,
-                      borderRadius: 12, padding: 10,
-                      display: "flex", alignItems: "center", justifyContent: "center",
+                      display: "flex", justifyContent: "space-between",
+                      fontSize: 11, paddingTop: 8,
+                      borderTop: `1px solid ${C.borderSoft}`,
                     }}>
-                      {ticket.qr_image_url ? (
-                        <img src={ticket.qr_image_url} alt="QR"
-                             style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                      ) : (
-                        <div style={{ color: C.textFaint, fontSize: 12, textAlign: "center" }}>
-                          QR<br/>pending
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* QR code text — monospace ispod QR-a */}
-                  <div style={{
-                    fontFamily: "ui-monospace, monospace",
-                    fontSize: 11, color: C.textMuted,
-                    textAlign: "center", letterSpacing: 0.4,
-                    padding: "0 18px 14px",
-                    wordBreak: "break-all",
-                  }}>
-                    {ticket.qr_code}
-                  </div>
-
-                  {/* Perforation */}
-                  <div style={{
-                    position: "relative",
-                    borderTop: `1.5px dashed ${C.borderSoft}`,
-                    margin: "0 18px",
-                  }}>
-                    {/* notches sa strana */}
-                    <div style={{
-                      position: "absolute", left: -25, top: -10,
-                      width: 20, height: 20, borderRadius: "50%",
-                      background: C.bg, border: `1px solid ${C.border}`,
-                    }} />
-                    <div style={{
-                      position: "absolute", right: -25, top: -10,
-                      width: 20, height: 20, borderRadius: "50%",
-                      background: C.bg, border: `1px solid ${C.border}`,
-                    }} />
-                  </div>
-
-                  {/* Detalji — kompaktna lista ispod perforacije */}
-                  <div style={{
-                    padding: "14px 18px 6px",
-                    display: "grid", gap: 6, fontSize: 12,
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
                       <span style={{ color: C.textSoft }}>{t.issued}</span>
                       <span style={{ color: C.text, fontWeight: 600 }}>
                         {fmtDate(ticket.issued_at)} {fmtTime(ticket.issued_at)}
                       </span>
                     </div>
-                  </div>
 
-                  {/* Footer brand */}
-                  <div style={{
-                    padding: "10px 18px 14px",
-                    fontSize: 10, color: C.textFaint,
-                    textAlign: "center", letterSpacing: 0.5, fontWeight: 700,
-                    textTransform: "uppercase",
-                  }}>
-                    KOTOR WALLS · {fmtDate(data.order?.paid_at ?? data.order?.created_at)}
+                    {/* Footer brand */}
+                    <div style={{
+                      marginTop: 8, paddingTop: 8,
+                      borderTop: `1px solid ${C.borderSoft}`,
+                      fontSize: 9, color: C.textFaint,
+                      textAlign: "center", letterSpacing: 0.5, fontWeight: 700,
+                      textTransform: "uppercase",
+                    }}>
+                      KOTOR WALLS · {fmtDate(data.order?.paid_at ?? data.order?.created_at)}
+                    </div>
                   </div>
                 </div>
               ))}
