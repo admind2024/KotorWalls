@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toJpeg } from "html-to-image";
+import JSZip from "jszip";
 import { SUPABASE_URL } from "./supabaseClient.js";
 
 // ─── Kotor paleta ────────────────────────────────────────────────────────────
@@ -189,16 +190,39 @@ export default function KotorTicketsDisplay() {
     if (!data?.tickets?.length) return;
     setBusy(true);
     try {
-      // Single ticket → renderuj samu karticu; više karata → zajednički wrapper
-      const node = data.tickets.length === 1
-        ? cardRefs.current[data.tickets[0].id]
-        : ticketsRef.current;
-      if (!node) return;
-      const dataUrl = await toJpeg(node, {
-        quality: 0.95, pixelRatio: 2,
-        backgroundColor: "#F7F8FA", cacheBust: true,
-      });
-      triggerDownload(dataUrl, "kotor-walls-karte.jpg");
+      // 1 karta → direktan JPG download
+      if (data.tickets.length === 1) {
+        const tk = data.tickets[0];
+        const node = cardRefs.current[tk.id];
+        if (!node) return;
+        const dataUrl = await toJpeg(node, {
+          quality: 0.95, pixelRatio: 2,
+          backgroundColor: "#ffffff", cacheBust: true,
+          style: { boxShadow: "none" },
+        });
+        triggerDownload(dataUrl, "kotor-walls-karta.jpg");
+        return;
+      }
+
+      // Više karata → ZIP sa zasebnim JPG-evima u punoj rezoluciji
+      const zip = new JSZip();
+      for (let i = 0; i < data.tickets.length; i++) {
+        const tk = data.tickets[i];
+        const node = cardRefs.current[tk.id];
+        if (!node) continue;
+        const dataUrl = await toJpeg(node, {
+          quality: 0.95, pixelRatio: 2,
+          backgroundColor: "#ffffff", cacheBust: true,
+          style: { boxShadow: "none" },
+        });
+        // dataUrl = "data:image/jpeg;base64,…"
+        const base64 = dataUrl.split(",")[1];
+        zip.file(`kotor-walls-karta-${i + 1}.jpg`, base64, { base64: true });
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url  = URL.createObjectURL(blob);
+      triggerDownload(url, "kotor-walls-karte.zip");
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch (e) {
       console.error(e);
       alert("Greška pri snimanju. Pokušajte ponovo.");
