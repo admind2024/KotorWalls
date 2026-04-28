@@ -98,17 +98,21 @@ export default function KotorContract() {
   return (
     <div style={pageStyles.body}>
       {/* Toolbar — sakriva se na print */}
-      <div style={pageStyles.toolbar} className="no-print">
-        <h1 style={pageStyles.toolbarTitle}>Distance Sales Contract · #{orderRef}</h1>
+      <div style={pageStyles.toolbar} className="no-print contract-toolbar">
+        <h1 style={pageStyles.toolbarTitle} className="contract-toolbar-title">Distance Sales Contract · #{orderRef}</h1>
         <button onClick={() => window.print()} style={pageStyles.printBtn}>
-          🖨 Print / Save as PDF
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginRight: 6, verticalAlign: "-2px" }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          Preuzmi i štampaj
         </button>
       </div>
 
-      <div style={pageStyles.page}>
+      <div style={pageStyles.page} className="contract-page">
 
         {/* Header */}
-        <div style={pageStyles.head}>
+        <div style={pageStyles.head} className="contract-head">
           <div style={pageStyles.logo}>
             <img
               src="https://hvpytasddzeprgqkwlbu.supabase.co/storage/v1/object/public/razno/kotor.png"
@@ -120,7 +124,7 @@ export default function KotorContract() {
               <div style={pageStyles.logoSub}>UNESCO World Heritage Site</div>
             </div>
           </div>
-          <div style={pageStyles.metaRight}>
+          <div style={pageStyles.metaRight} className="contract-meta-right">
             <div style={pageStyles.ref}>#{orderRef}</div>
             <div>{created}</div>
           </div>
@@ -159,28 +163,30 @@ export default function KotorContract() {
             Heritage Site, Stari grad Kotor, Montenegro). Each ticket grants single-entry access on
             the day of validity, redeemed by scanning the QR code at the automated entrance gate.
           </p>
-          <table style={pageStyles.itemsTable}>
-            <thead>
-              <tr>
-                <th style={pageStyles.th}>#</th>
-                <th style={pageStyles.th}>Description</th>
-                <th style={pageStyles.th}>Ticket ID (QR)</th>
-                <th style={{ ...pageStyles.th, textAlign: "right" }}>Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(tickets || []).length === 0 ? (
-                <tr><td colSpan={4} style={{ ...pageStyles.td, textAlign: "center", color: C.textSoft }}>No items</td></tr>
-              ) : tickets.map((t, i) => (
-                <tr key={t.id || i}>
-                  <td style={pageStyles.td}>{i + 1}</td>
-                  <td style={pageStyles.td}>{t.category_name || "Entrance ticket — Kotor City Walls"}</td>
-                  <td style={{ ...pageStyles.td, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11, color: C.textSoft }}>{t.qr_code || "—"}</td>
-                  <td style={{ ...pageStyles.td, textAlign: "right" }}>{fmtMoney(t.price, cur)}</td>
+          <div className="contract-items-wrap">
+            <table style={pageStyles.itemsTable}>
+              <thead>
+                <tr>
+                  <th style={pageStyles.th}>#</th>
+                  <th style={pageStyles.th}>Description</th>
+                  <th style={pageStyles.th}>Ticket ID (QR)</th>
+                  <th style={{ ...pageStyles.th, textAlign: "right" }}>Price</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(tickets || []).length === 0 ? (
+                  <tr><td colSpan={4} style={{ ...pageStyles.td, textAlign: "center", color: C.textSoft }}>No items</td></tr>
+                ) : tickets.map((t, i) => (
+                  <tr key={t.id || i}>
+                    <td style={pageStyles.td}>{i + 1}</td>
+                    <td style={pageStyles.td}>{t.category_name || "Entrance ticket — Kotor City Walls"}</td>
+                    <td style={{ ...pageStyles.td, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11, color: C.textSoft }}>{t.qr_code || "—"}</td>
+                    <td style={{ ...pageStyles.td, textAlign: "right" }}>{fmtMoney(t.price, cur)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div style={pageStyles.summary}>
             <table style={pageStyles.summaryTable}>
               <tbody>
@@ -263,7 +269,7 @@ export default function KotorContract() {
         </Section>
 
         {/* Signature blocks */}
-        <div style={pageStyles.signatures}>
+        <div style={pageStyles.signatures} className="contract-sigs">
           <div style={pageStyles.sigBox}>
             <div style={pageStyles.sigTitle}>For the Seller</div>
             <div style={pageStyles.sigLine} />
@@ -315,12 +321,64 @@ export default function KotorContract() {
 
       </div>
 
-      {/* Print CSS */}
+      {/* Print + responsive CSS */}
       <style>{`
         @media print {
           body { background: #fff !important; }
           .no-print { display: none !important; }
           @page { size: A4 portrait; margin: 14mm; }
+        }
+
+        /* Mobile (telefon, ≤640px) */
+        @media (max-width: 640px) {
+          .contract-page {
+            margin: 12px 8px !important;
+            padding: 20px 16px !important;
+            border-radius: 6px !important;
+            box-shadow: none !important;
+            border: 1px solid #E6E8EB;
+          }
+          .contract-toolbar {
+            padding: 8px 12px !important;
+            gap: 8px;
+          }
+          .contract-toolbar-title {
+            font-size: 12px !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            flex: 1;
+          }
+          .contract-head {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 12px;
+          }
+          .contract-head .contract-meta-right {
+            text-align: left !important;
+          }
+          .contract-kv {
+            grid-template-columns: 1fr !important;
+            gap: 2px !important;
+            margin-bottom: 12px !important;
+          }
+          .contract-kv-key {
+            font-size: 10px !important;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-weight: 600;
+          }
+          .contract-sigs {
+            grid-template-columns: 1fr !important;
+            gap: 24px !important;
+          }
+          .contract-items-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0 -4px;
+          }
+          .contract-items-wrap table { min-width: 480px; }
         }
       `}</style>
     </div>
@@ -344,9 +402,9 @@ function Section({ n, title, children }) {
 
 function KV({ k, v }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "6px 16px", marginBottom: 8 }}>
-      <div style={{ color: C.textSoft, fontSize: 12 }}>{k}</div>
-      <div style={{ color: C.text, fontSize: 13 }}>{v}</div>
+    <div className="contract-kv" style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "6px 16px", marginBottom: 8 }}>
+      <div className="contract-kv-key" style={{ color: C.textSoft, fontSize: 12 }}>{k}</div>
+      <div style={{ color: C.text, fontSize: 13, wordBreak: "break-word" }}>{v}</div>
     </div>
   );
 }
