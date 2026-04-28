@@ -2359,15 +2359,19 @@ function PaymentModeCard() {
     return () => window.removeEventListener("kw:mode-change", h);
   }, []);
 
-  const switchTo = (next) => {
+  const switchTo = async (next) => {
     if (next === mode) return;
     const msg = next === "live"
       ? "Prebaciti na PRODUKCIJU? Sljedeća plaćanja će koristiti stvarne kartice i stvarni novac."
       : "Prebaciti na TEST mod? Sljedeća plaćanja neće naplaćivati stvarni novac (samo testne kartice).";
     if (!confirm(msg)) return;
-    setStripeMode(next);
-    setMode(next);
-    setTimeout(() => window.location.reload(), 150);
+    try {
+      await setStripeMode(next);
+      setMode(next);
+      setTimeout(() => window.location.reload(), 150);
+    } catch (e) {
+      alert(`Greška pri snimanju moda: ${e?.message ?? e}`);
+    }
   };
 
   const isTest = mode === "test";

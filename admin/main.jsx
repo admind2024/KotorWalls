@@ -6,7 +6,7 @@ import KotorTicket from "./KotorTicket.jsx";
 import KotorTicketsDisplay from "./KotorTicketsDisplay.jsx";
 import KotorContract from "./KotorContract.jsx";
 import KotorReceipt from "./KotorReceipt.jsx";
-import { getStripeMode } from "./supabaseClient.js";
+import { getStripeMode, fetchStripeMode } from "./supabaseClient.js";
 
 // ─── Test mode banner ───────────────────────────────────────────────────────
 function TestModeBanner() {
@@ -116,6 +116,9 @@ function AdminGate() {
   const [ok, setOk] = useState(() => {
     try { return sessionStorage.getItem(SESSION_KEY) === "1"; } catch { return false; }
   });
+  // Pri svakom učitavanju /admin-a, sinhronizuj stripe_mode iz DB →
+  // admin se loguje sa različitih PC-eva, preferenca uvijek prati nalog.
+  useEffect(() => { if (ok) fetchStripeMode(); }, [ok]);
   if (!ok) return <AdminLogin onOk={() => setOk(true)} />;
   return <KotorAdmin />;
 }
