@@ -7,6 +7,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// Cross-function bearer (JWT format) — SERVICE_ROLE u novom Supabase formatu
+// (sb_secret_*) ne prolazi platform-level JWT verifikaciju.
+const ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin":  "*",
@@ -28,8 +31,8 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization:  `Bearer ${SERVICE_ROLE}`,
-          apikey:         SERVICE_ROLE,
+          Authorization:  `Bearer ${ANON_KEY}`,
+          apikey:         ANON_KEY,
         },
         body: JSON.stringify({ order_id: body.order_id }),
       });

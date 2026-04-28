@@ -13,6 +13,10 @@ const WEBHOOK_LIVE     = Deno.env.get("KotorWalls_WEBHOOK") ?? "";
 const WEBHOOK_TEST     = Deno.env.get("KotorWalls_WEBHOOK_TEST") ?? "";
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE     = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// ANON_KEY se koristi kao Bearer token za cross-function pozive (send-ticket-email,
+// fiscalize-order). SERVICE_ROLE u novom Supabase formatu (sb_secret_*) ne prolazi
+// platform-level JWT validaciju, pa edge gateway baca UNAUTHORIZED_INVALID_JWT_FORMAT.
+const ANON_KEY         = Deno.env.get("SUPABASE_ANON_KEY")!;
 const HMAC_SECRET      = Deno.env.get("HMAC_SECRET_KEY") ?? "ETK-9f38d1a2-cc49-4e3b-b182-7f94c2d9f6aa-2025";
 const EVENT_ID         = "KOTOR WALLS";
 
@@ -207,8 +211,8 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization:  `Bearer ${SERVICE_ROLE}`,
-        apikey:         SERVICE_ROLE,
+        Authorization:  `Bearer ${ANON_KEY}`,
+        apikey:         ANON_KEY,
       },
       body: JSON.stringify({ order_id: orderId, reason: "purchase" }),
     });
@@ -237,8 +241,8 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization:  `Bearer ${SERVICE_ROLE}`,
-        apikey:         SERVICE_ROLE,
+        Authorization:  `Bearer ${ANON_KEY}`,
+        apikey:         ANON_KEY,
       },
       body: JSON.stringify({ order_id: orderId }),
     });

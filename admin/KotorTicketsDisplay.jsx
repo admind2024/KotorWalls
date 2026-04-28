@@ -149,38 +149,56 @@ export default function KotorTicketsDisplay() {
     return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   };
 
-  // ─── JPG download — html-to-image renderuje karticu u 2x rezoluciji ─────────
-  const cardRefs = useRef({});
+  // ─── JPG download ────────────────────────────────────────────────────────
+  // Browseri blokiraju više uzastopnih download-a (mobile Safari pogotovo),
+  // pa renderujemo SVE karte u jedan kompozitni JPG (vertikalna traka).
+  // Pojedinačno snimanje: mali "save" button na svakoj karti.
+  const cardRefs    = useRef({});
+  const ticketsRef  = useRef(null);
   const [busy, setBusy] = useState(false);
 
-  const downloadOne = async (ticketId, idx, total) => {
-    const node = cardRefs.current[ticketId];
-    if (!node) return;
-    const dataUrl = await toJpeg(node, {
-      quality: 0.95,
-      pixelRatio: 2,
-      backgroundColor: "#ffffff",
-      cacheBust: true,
-      style: { boxShadow: "none" },
-    });
+  const triggerDownload = (dataUrl, filename) => {
     const link = document.createElement("a");
-    link.download = total > 1 ? `kotor-walls-karta-${idx + 1}.jpg` : "kotor-walls-karta.jpg";
+    link.download = filename;
     link.href = dataUrl;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+  const downloadOne = async (ticketId, idx) => {
+    const node = cardRefs.current[ticketId];
+    if (!node) return;
+    setBusy(true);
+    try {
+      const dataUrl = await toJpeg(node, {
+        quality: 0.95, pixelRatio: 2,
+        backgroundColor: "#ffffff", cacheBust: true,
+        style: { boxShadow: "none" },
+      });
+      triggerDownload(dataUrl, `kotor-walls-karta-${idx + 1}.jpg`);
+    } catch (e) {
+      console.error(e);
+      alert("Greška pri snimanju.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const downloadAll = async () => {
     if (!data?.tickets?.length) return;
     setBusy(true);
     try {
-      for (let i = 0; i < data.tickets.length; i++) {
-        const tk = data.tickets[i];
-        await downloadOne(tk.id, i, data.tickets.length);
-        // Mali razmak izmedju download-a (browser-i ponekad batchuju)
-        await new Promise(r => setTimeout(r, 250));
-      }
+      // Single ticket → renderuj samu karticu; više karata → zajednički wrapper
+      const node = data.tickets.length === 1
+        ? cardRefs.current[data.tickets[0].id]
+        : ticketsRef.current;
+      if (!node) return;
+      const dataUrl = await toJpeg(node, {
+        quality: 0.95, pixelRatio: 2,
+        backgroundColor: "#F7F8FA", cacheBust: true,
+      });
+      triggerDownload(dataUrl, "kotor-walls-karte.jpg");
     } catch (e) {
       console.error(e);
       alert("Greška pri snimanju. Pokušajte ponovo.");
@@ -264,7 +282,7 @@ export default function KotorTicketsDisplay() {
             </div>
 
             {/* Tickets — kompaktna kartica veličine telefona, sve u jednoj kutiji */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
+            <div ref={ticketsRef} style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center", padding: 4 }}>
               {data.tickets.map((ticket, i) => (
                 <div
                   key={ticket.id}
