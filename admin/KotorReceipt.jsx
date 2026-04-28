@@ -380,60 +380,73 @@ export default function KotorReceipt() {
                 </div>
               </div>
 
-              {/* Fiscal codes — samo ako imamo IKOF (znači fiskalizovan) */}
+              {/* Fiscal blok — QR lijevo, IIC/FIC desno, suptilna pozadina */}
               {fiscal?.ikof && (
                 <div style={{
-                  marginTop: 16, padding: "12px 14px",
-                  background: C.bg, borderRadius: 10,
-                  border: `1px solid ${C.borderSoft}`,
-                }}>
-                  <Row k={t.iic} v={fiscal.ikof} mono small />
-                  {fiscal.jikr && <Row k={t.fic} v={fiscal.jikr} mono small />}
-                </div>
-              )}
-
-              {/* CIS verify QR — veliki za skeniranje, suptilni link umjesto sirovog URL-a */}
-              {fiscal?.qr_url && (
-                <div style={{
                   marginTop: 16,
-                  padding: "14px 14px 12px",
-                  background: C.surface, border: `1px solid ${C.border}`,
+                  padding: 14,
+                  background: C.bg,
+                  border: `1px solid ${C.borderSoft}`,
                   borderRadius: 10,
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                  display: "flex", gap: 14, alignItems: "flex-start",
                 }}>
-                  <div style={{
-                    fontSize: 10, fontWeight: 700, color: C.textSoft,
-                    letterSpacing: 0.6, textTransform: "uppercase",
-                  }}>
-                    {t.verifyCis}
+                  {/* QR — lijevo, kompaktan ali skenabilan */}
+                  {fiscal.qr_url && (
+                    <a
+                      href={fiscal.qr_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={t.verifyCis}
+                      style={{
+                        flexShrink: 0, width: 110, height: 110,
+                        background: "#fff", border: `1px solid ${C.border}`,
+                        borderRadius: 8, padding: 5,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fiscal.qr_url)}`}
+                        alt="CIS verify QR"
+                        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                      />
+                    </a>
+                  )}
+
+                  {/* IIC/FIC + verify link — desno */}
+                  <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: C.textSoft, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 2 }}>
+                        IIC
+                      </div>
+                      <div style={{ fontSize: 11, color: C.text, fontFamily: "ui-monospace, monospace", wordBreak: "break-all", lineHeight: 1.4 }}>
+                        {fiscal.ikof}
+                      </div>
+                    </div>
+                    {fiscal.jikr && (
+                      <div>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: C.textSoft, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 2 }}>
+                          FIC
+                        </div>
+                        <div style={{ fontSize: 11, color: C.text, fontFamily: "ui-monospace, monospace", wordBreak: "break-all", lineHeight: 1.4 }}>
+                          {fiscal.jikr}
+                        </div>
+                      </div>
+                    )}
+                    {fiscal.qr_url && (
+                      <a
+                        href={fiscal.qr_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: 10, color: C.textMuted,
+                          textDecoration: "none", fontWeight: 600,
+                          letterSpacing: 0.3,
+                        }}
+                      >
+                        {t.verifyCis} →
+                      </a>
+                    )}
                   </div>
-                  <div style={{
-                    width: 180, height: 180,
-                    background: "#fff", border: `1px solid ${C.border}`,
-                    borderRadius: 10, padding: 6,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(fiscal.qr_url)}`}
-                      alt="CIS verify QR"
-                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                    />
-                  </div>
-                  <a
-                    href={fiscal.qr_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                      padding: "5px 10px", marginTop: 2,
-                      fontSize: 11, color: C.textMuted,
-                      background: C.bg, border: `1px solid ${C.borderSoft}`,
-                      borderRadius: 6,
-                      textDecoration: "none", fontWeight: 600,
-                    }}
-                  >
-                    {t.verifyCis} →
-                  </a>
                 </div>
               )}
 

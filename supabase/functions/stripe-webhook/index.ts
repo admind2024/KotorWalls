@@ -203,39 +203,13 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
     },
   });
 
-  // Pošalji email sa QR kartama — ne blokira webhook ako padne.
-  // VAŽNO: bilo non-2xx odgovor bilo exception → audit log entry, da se
-  // u admin panelu vidi šta se desilo (ranije se loglo samo na konzolu).
-  try {
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/send-ticket-email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization:  `Bearer ${ANON_KEY}`,
-        apikey:         ANON_KEY,
-      },
-      body: JSON.stringify({ order_id: orderId, reason: "purchase" }),
-    });
-    if (!r.ok) {
-      const errBody = await r.text();
-      console.error("email send failed:", r.status, errBody);
-      await supabase.from("kotorwalls_audit_log").insert({
-        actor_type: "system", action: "email.ticket_failed",
-        entity: "order", entity_id: orderId,
-        metadata: { http_status: r.status, error: errBody.slice(0, 500) },
-      });
-    }
-  } catch (e) {
-    console.error("email send exception:", e);
-    await supabase.from("kotorwalls_audit_log").insert({
-      actor_type: "system", action: "email.ticket_failed",
-      entity: "order", entity_id: orderId,
-      metadata: { error: String(e), exception: true },
-    });
-  }
+  // ─── REDOSLIJED: 1) Fiskalizacija → 2) Email ──────────────────────────────
+  // Email mora imati Download receipt button, što zahtijeva da je order
+  // već fiskalizovan u trenutku slanja. Fiscalize-order ažurira
+  // orders.fiscal_status na 'fiscalized', pa send-ticket-email u svom
+  // upitu za order vidi taj status i renderuje fiscal blok u email-u.
 
-  // Fiskalizacija (CG EFI/CIS) — non-blocking; status se vodi u orders.fiscal_status.
-  // Audit log za bilo non-2xx bilo exception, da se u admin panelu vidi šta se desilo.
+  // 1) Fiskalizacija (CG EFI/CIS)
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/fiscalize-order`, {
       method: "POST",
@@ -259,6 +233,35 @@ async function onSucceeded(stripe: Stripe, pi: Stripe.PaymentIntent) {
     console.error("fiscalize exception:", e);
     await supabase.from("kotorwalls_audit_log").insert({
       actor_type: "system", action: "fiscal.exception",
+      entity: "order", entity_id: orderId,
+      metadata: { error: String(e), exception: true },
+    });
+  }
+
+  // 2) Email sa QR kartama + Download receipt button (jer je sad fiskalizovano)
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/send-ticket-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:  `Bearer ${ANON_KEY}`,
+        apikey:         ANON_KEY,
+      },
+      body: JSON.stringify({ order_id: orderId, reason: "purchase" }),
+    });
+    if (!r.ok) {
+      const errBody = await r.text();
+      console.error("email send failed:", r.status, errBody);
+      await supabase.from("kotorwalls_audit_log").insert({
+        actor_type: "system", action: "email.ticket_failed",
+        entity: "order", entity_id: orderId,
+        metadata: { http_status: r.status, error: errBody.slice(0, 500) },
+      });
+    }
+  } catch (e) {
+    console.error("email send exception:", e);
+    await supabase.from("kotorwalls_audit_log").insert({
+      actor_type: "system", action: "email.ticket_failed",
       entity: "order", entity_id: orderId,
       metadata: { error: String(e), exception: true },
     });
