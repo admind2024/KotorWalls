@@ -159,9 +159,32 @@ export default function KotorReceipt() {
 
   const order   = data?.order   ?? null;
   const tickets = data?.tickets ?? [];
-  const fiscal  = data?.fiscal  ?? null;
-  const seller  = data?.seller  ?? null;
-  const items   = aggregateItems(tickets);
+
+  // Fiscal — koristi server fiscal record ili fallback na order kolone (fiscal_ikof, fiscal_jikr)
+  // ako edge funkcija još nije ažurirana ili fiscal_invoices red ne postoji.
+  const serverFiscal = data?.fiscal ?? null;
+  const fiscal = serverFiscal ?? (
+    order?.fiscal_ikof
+      ? { ikof: order.fiscal_ikof, jikr: order.fiscal_jikr ?? null }
+      : null
+  );
+
+  // Seller — server ili default iz CG fiskalne konfiguracije
+  const seller = data?.seller ?? {
+    seller_name: "—",
+    seller_tin: "—",
+    business_unit_code: "—",
+    business_unit_address: "",
+    business_unit_town: "",
+    default_vat_rate: 21,
+    is_production: false,
+  };
+
+  const items = aggregateItems(tickets);
+
+  // Fiskalni status: "fiscalized" / "pending" / "failed" / null
+  const fiscalStatus = order?.fiscal_status ?? null;
+  const isFiscalized = fiscalStatus === "fiscalized" || !!fiscal?.ikof;
 
   // VAT računica — fiscal default_vat_rate je INKLUZIVAN (cijene su sa PDV-om)
   const vatRate = Number(seller?.default_vat_rate ?? 21);
@@ -226,20 +249,7 @@ export default function KotorReceipt() {
           </div>
         )}
 
-        {!loading && !err && order && !fiscal && (
-          <div style={{
-            background: C.goldSoft, borderRadius: 12, border: "1px solid #EADD9C",
-            padding: 24, textAlign: "center", color: C.goldDark,
-            fontSize: 14, fontWeight: 600,
-          }}>
-            {order.fiscal_status === "pending" ? t.pendingFiscal : t.notFiscalized}
-            <div style={{ fontSize: 12, fontWeight: 500, color: C.textMuted, marginTop: 8 }}>
-              support@kotorwalls.com
-            </div>
-          </div>
-        )}
-
-        {!loading && !err && order && fiscal && (
+        {!loading && !err && order && (
           <div className="receipt" style={{
             background: C.surface, borderRadius: 14,
             border: `1px solid ${C.border}`,
@@ -251,7 +261,7 @@ export default function KotorReceipt() {
 
             <div style={{ padding: "20px 22px" }}>
               {/* Header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, gap: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.6, textTransform: "uppercase" }}>
                     KOTOR WALLS
@@ -262,36 +272,62 @@ export default function KotorReceipt() {
                   <div style={{ fontSize: 12, color: C.textSoft }}>{t.subtitle}</div>
                 </div>
                 <div style={{
-                  background: seller?.is_production ? "#E3F3E8" : C.goldSoft,
-                  color: seller?.is_production ? "#0F7A3D" : C.goldDark,
-                  border: `1px solid ${seller?.is_production ? "#BBECCB" : "#EADD9C"}`,
+                  background: isFiscalized ? "#E3F3E8" : C.goldSoft,
+                  color:      isFiscalized ? "#0F7A3D" : C.goldDark,
+                  border:     `1px solid ${isFiscalized ? "#BBECCB" : "#EADD9C"}`,
                   padding: "3px 10px", borderRadius: 999,
                   fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
                   flexShrink: 0,
                 }}>
-                  {seller?.is_production ? "PROD" : "TEST"}
+                  {isFiscalized ? "FISCALIZED" : (fiscalStatus === "failed" ? "FAILED" : "PENDING")}
                 </div>
               </div>
 
-              {/* Seller */}
+              {/* Status banner — uvijek vidljiv, jasno opisuje stanje */}
+              {!isFiscalized && (
+                <div style={{
+                  marginBottom: 14, padding: "10px 14px",
+                  background: fiscalStatus === "failed" ? C.primarySoft : C.goldSoft,
+                  border: `1px solid ${fiscalStatus === "failed" ? "#F3CFCF" : "#EADD9C"}`,
+                  color: fiscalStatus === "failed" ? C.primaryDark : C.goldDark,
+                  borderRadius: 8, fontSize: 12, fontWeight: 600, lineHeight: 1.5,
+                }}>
+                  {fiscalStatus === "failed"
+                    ? "Fiskalizacija nije uspjela — pokušaj retry iz admin panela."
+                    : t.pendingFiscal}
+                </div>
+              )}
+
+              {/* Seller — uvijek prikazujemo, čak i ako server seller je null */}
               <Section label={t.seller}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{seller?.seller_name ?? "—"}</div>
-                <Row k={t.pib} v={seller?.seller_tin ?? "—"} mono />
-                <Row k={t.buCode} v={`${seller?.business_unit_code ?? "—"} · ${seller?.business_unit_address ?? ""} ${seller?.business_unit_town ?? ""}`} />
-                <Row k={t.tcr}    v={fiscal?.tcr_code ?? "—"} mono />
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+                  {seller?.seller_name && seller.seller_name !== "—" ? seller.seller_name : "Opština Kotor / TECONIA MONTENEGRO DOO"}
+                </div>
+                {seller?.seller_tin && seller.seller_tin !== "—" && <Row k={t.pib} v={seller.seller_tin} mono />}
+                {(seller?.business_unit_address || seller?.business_unit_town) && (
+                  <Row k={t.buCode} v={`${seller?.business_unit_code ?? ""} · ${seller?.business_unit_address ?? ""} ${seller?.business_unit_town ?? ""}`.trim()} />
+                )}
+                {fiscal?.tcr_code && <Row k={t.tcr} v={fiscal.tcr_code} mono />}
               </Section>
 
-              {/* Customer */}
+              {/* Customer — uvijek vidljivo kad je order */}
               <Section label={t.customer}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{order.customer_name ?? "—"}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                  {order.customer_name || "—"}
+                </div>
                 {order.customer_email && <Row k={t.email} v={order.customer_email} />}
-                {order.customer_country && <Row k="Country" v={order.customer_country} />}
+                {order.customer_phone && <Row k="Telefon" v={order.customer_phone} />}
+                {order.customer_country && <Row k="Država" v={order.customer_country} />}
               </Section>
 
               {/* Invoice meta */}
               <Section>
-                <Row k={t.ordNum}  v={`${fiscal.invoice_ord_num ?? "—"} / ${new Date(fiscal.issued_at ?? order.paid_at ?? Date.now()).getFullYear()}`} mono bold />
-                <Row k={t.issuedAt} v={fmtIssueDt(fiscal.issue_dt ?? fiscal.issued_at ?? order.paid_at)} />
+                {fiscal?.invoice_ord_num && (
+                  <Row k={t.ordNum}
+                       v={`${fiscal.invoice_ord_num} / ${new Date(fiscal.issued_at ?? order.paid_at ?? Date.now()).getFullYear()}`}
+                       mono bold />
+                )}
+                <Row k={t.issuedAt} v={fmtIssueDt(fiscal?.issue_dt ?? fiscal?.issued_at ?? order.paid_at)} />
                 <Row k={t.paymentMethod} v={order.channel === "kiosk-cash" ? t.cash : t.card} />
               </Section>
 
@@ -344,18 +380,20 @@ export default function KotorReceipt() {
                 </div>
               </div>
 
-              {/* Fiscal codes */}
-              <div style={{
-                marginTop: 16, padding: "12px 14px",
-                background: C.bg, borderRadius: 10,
-                border: `1px solid ${C.borderSoft}`,
-              }}>
-                <Row k={t.iic} v={fiscal.ikof ?? "—"} mono small />
-                <Row k={t.fic} v={fiscal.jikr ?? "—"} mono small />
-              </div>
+              {/* Fiscal codes — samo ako imamo IKOF (znači fiskalizovan) */}
+              {fiscal?.ikof && (
+                <div style={{
+                  marginTop: 16, padding: "12px 14px",
+                  background: C.bg, borderRadius: 10,
+                  border: `1px solid ${C.borderSoft}`,
+                }}>
+                  <Row k={t.iic} v={fiscal.ikof} mono small />
+                  {fiscal.jikr && <Row k={t.fic} v={fiscal.jikr} mono small />}
+                </div>
+              )}
 
               {/* CIS verify QR */}
-              {fiscal.qr_url && (
+              {fiscal?.qr_url && (
                 <div style={{
                   marginTop: 14, display: "flex", gap: 14,
                   alignItems: "center", padding: "12px 14px",
@@ -405,7 +443,7 @@ export default function KotorReceipt() {
         )}
 
         {/* Print button */}
-        {!loading && !err && order && fiscal && (
+        {!loading && !err && order && (
           <div className="no-print" style={{ marginTop: 18, display: "flex", justifyContent: "center" }}>
             <button onClick={() => window.print()} style={{
               display: "inline-flex", alignItems: "center", gap: 8,
