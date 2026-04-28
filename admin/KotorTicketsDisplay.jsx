@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { toJpeg } from "html-to-image";
-import JSZip from "jszip";
 import { SUPABASE_URL } from "./supabaseClient.js";
 
 // ─── Kotor paleta ────────────────────────────────────────────────────────────
@@ -150,84 +149,31 @@ export default function KotorTicketsDisplay() {
     return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   };
 
-  // ─── JPG download ────────────────────────────────────────────────────────
-  // Browseri blokiraju više uzastopnih download-a (mobile Safari pogotovo),
-  // pa renderujemo SVE karte u jedan kompozitni JPG (vertikalna traka).
-  // Pojedinačno snimanje: mali "save" button na svakoj karti.
-  const cardRefs    = useRef({});
-  const ticketsRef  = useRef(null);
-  const [busy, setBusy] = useState(false);
+  // ─── JPG download — pojedinačno po karti ──────────────────────────────────
+  const cardRefs = useRef({});
+  const [busyId, setBusyId] = useState(null);
 
-  const triggerDownload = (dataUrl, filename) => {
-    const link = document.createElement("a");
-    link.download = filename;
-    link.href = dataUrl;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const downloadOne = async (ticketId, idx) => {
+  const downloadOne = async (ticketId, idx, total) => {
     const node = cardRefs.current[ticketId];
     if (!node) return;
-    setBusy(true);
+    setBusyId(ticketId);
     try {
       const dataUrl = await toJpeg(node, {
         quality: 0.95, pixelRatio: 2,
         backgroundColor: "#ffffff", cacheBust: true,
         style: { boxShadow: "none" },
       });
-      triggerDownload(dataUrl, `kotor-walls-karta-${idx + 1}.jpg`);
+      const link = document.createElement("a");
+      link.download = total > 1 ? `kotor-walls-karta-${idx + 1}.jpg` : "kotor-walls-karta.jpg";
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (e) {
       console.error(e);
       alert("Greška pri snimanju.");
     } finally {
-      setBusy(false);
-    }
-  };
-
-  const downloadAll = async () => {
-    if (!data?.tickets?.length) return;
-    setBusy(true);
-    try {
-      // 1 karta → direktan JPG download
-      if (data.tickets.length === 1) {
-        const tk = data.tickets[0];
-        const node = cardRefs.current[tk.id];
-        if (!node) return;
-        const dataUrl = await toJpeg(node, {
-          quality: 0.95, pixelRatio: 2,
-          backgroundColor: "#ffffff", cacheBust: true,
-          style: { boxShadow: "none" },
-        });
-        triggerDownload(dataUrl, "kotor-walls-karta.jpg");
-        return;
-      }
-
-      // Više karata → ZIP sa zasebnim JPG-evima u punoj rezoluciji
-      const zip = new JSZip();
-      for (let i = 0; i < data.tickets.length; i++) {
-        const tk = data.tickets[i];
-        const node = cardRefs.current[tk.id];
-        if (!node) continue;
-        const dataUrl = await toJpeg(node, {
-          quality: 0.95, pixelRatio: 2,
-          backgroundColor: "#ffffff", cacheBust: true,
-          style: { boxShadow: "none" },
-        });
-        // dataUrl = "data:image/jpeg;base64,…"
-        const base64 = dataUrl.split(",")[1];
-        zip.file(`kotor-walls-karta-${i + 1}.jpg`, base64, { base64: true });
-      }
-      const blob = await zip.generateAsync({ type: "blob" });
-      const url  = URL.createObjectURL(blob);
-      triggerDownload(url, "kotor-walls-karte.zip");
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-    } catch (e) {
-      console.error(e);
-      alert("Greška pri snimanju. Pokušajte ponovo.");
-    } finally {
-      setBusy(false);
+      setBusyId(null);
     }
   };
 
@@ -306,14 +252,14 @@ export default function KotorTicketsDisplay() {
             </div>
 
             {/* Tickets — kompaktna kartica veličine telefona, sve u jednoj kutiji */}
-            <div ref={ticketsRef} style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center", padding: 4 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 18, alignItems: "center", padding: 4 }}>
               {data.tickets.map((ticket, i) => (
+                <div key={ticket.id} style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
                 <div
-                  key={ticket.id}
                   ref={el => { if (el) cardRefs.current[ticket.id] = el; }}
                   className="ticket-card"
                   style={{
-                    width: "100%", maxWidth: 320,
+                    width: "100%",
                     background: C.surface, borderRadius: 14,
                     border: `1px solid ${C.border}`,
                     overflow: "hidden",
@@ -437,29 +383,43 @@ export default function KotorTicketsDisplay() {
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Actions */}
-            <div className="no-print" style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
-              <button
-                onClick={downloadAll}
-                disabled={busy}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  padding: "12px 24px",
-                  background: busy ? C.borderSoft : C.primary, color: busy ? C.textMuted : "#fff",
-                  border: "none", borderRadius: 10,
-                  fontSize: 13, fontWeight: 700,
-                  cursor: busy ? "wait" : "pointer", fontFamily: "inherit",
-                  boxShadow: busy ? "none" : "0 2px 6px rgba(178,58,58,0.25)",
-                }}>
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-                </svg>
-                {busy ? "…" : (t.download + (data.tickets.length > 1 ? ` (${data.tickets.length})` : ""))}
-              </button>
+                  {/* Suptilno dugme za snimanje OVE karte — nije unutar cardRef-a, pa ne ide u JPG */}
+                  <button
+                    className="no-print"
+                    onClick={() => downloadOne(ticket.id, i, data.tickets.length)}
+                    disabled={busyId === ticket.id}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "6px 12px",
+                      background: "transparent",
+                      color: busyId === ticket.id ? C.textFaint : C.textSoft,
+                      border: `1px solid ${C.borderSoft}`, borderRadius: 7,
+                      fontSize: 11, fontWeight: 600,
+                      cursor: busyId === ticket.id ? "wait" : "pointer", fontFamily: "inherit",
+                      transition: "all 0.12s",
+                    }}
+                    onMouseEnter={e => {
+                      if (busyId !== ticket.id) {
+                        e.currentTarget.style.color = C.text;
+                        e.currentTarget.style.borderColor = C.border;
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (busyId !== ticket.id) {
+                        e.currentTarget.style.color = C.textSoft;
+                        e.currentTarget.style.borderColor = C.borderSoft;
+                      }
+                    }}
+                  >
+                    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                    {busyId === ticket.id ? "…" : t.download}
+                  </button>
+                </div>
+              ))}
             </div>
 
             {/* Print CSS — svaka karta na svojoj stranici, format prilagođen telefonu */}
