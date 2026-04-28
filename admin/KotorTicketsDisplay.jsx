@@ -211,7 +211,7 @@ export default function KotorTicketsDisplay() {
         {!loading && data?.tickets?.length > 0 && (
           <>
             {/* Instruction banner */}
-            <div style={{
+            <div className="no-print" style={{
               background: C.goldSoft, border: "1px solid #EADD9C",
               borderRadius: 10, padding: "12px 16px", marginBottom: 18,
               display: "flex", gap: 10, alignItems: "flex-start",
@@ -222,30 +222,11 @@ export default function KotorTicketsDisplay() {
               <div style={{ fontSize: 13, color: C.goldDark, fontWeight: 500, lineHeight: 1.5 }}>{t.instruct}</div>
             </div>
 
-            {/* Order summary */}
-            <div style={{
-              background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`,
-              padding: "14px 18px", marginBottom: 18,
-              display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13,
-            }}>
-              <div>
-                <div style={{ fontSize: 11, color: C.textSoft, marginBottom: 2, textTransform: "uppercase", letterSpacing: 0.5 }}>{t.customer}</div>
-                <div style={{ color: C.text, fontWeight: 600 }}>{data.order?.customer_name ?? "—"}</div>
-                <div style={{ color: C.textSoft, fontSize: 12 }}>{data.order?.customer_email ?? ""}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11, color: C.textSoft, marginBottom: 2, textTransform: "uppercase", letterSpacing: 0.5 }}>{t.orderRef}</div>
-                <div style={{ color: C.text, fontFamily: "ui-monospace, monospace", fontSize: 11 }}>
-                  {data.order?.id?.slice(0, 8)}…{data.order?.id?.slice(-4)}
-                </div>
-              </div>
-            </div>
-
             {/* Tickets — kompaktna kartica veličine telefona, sve u jednoj kutiji */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
               {data.tickets.map((ticket, i) => (
-                <div key={ticket.id} style={{
-                  width: "100%", maxWidth: 300,
+                <div key={ticket.id} className="ticket-card" style={{
+                  width: "100%", maxWidth: 320,
                   background: C.surface, borderRadius: 14,
                   border: `1px solid ${C.border}`,
                   overflow: "hidden",
@@ -313,16 +294,46 @@ export default function KotorTicketsDisplay() {
                       {ticket.qr_code}
                     </div>
 
-                    {/* Detalji — kompaktan red */}
+                    {/* Customer + order detalji — sve u jednoj kutiji */}
                     <div style={{
-                      display: "flex", justifyContent: "space-between",
-                      fontSize: 11, paddingTop: 8,
+                      paddingTop: 10,
                       borderTop: `1px solid ${C.borderSoft}`,
+                      display: "grid", gap: 5, fontSize: 11,
                     }}>
-                      <span style={{ color: C.textSoft }}>{t.issued}</span>
-                      <span style={{ color: C.text, fontWeight: 600 }}>
-                        {fmtDate(ticket.issued_at)} {fmtTime(ticket.issued_at)}
-                      </span>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                        <span style={{ color: C.textSoft, flexShrink: 0 }}>{t.customer}</span>
+                        <span style={{
+                          color: C.text, fontWeight: 600, textAlign: "right",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                          {data.order?.customer_name ?? "—"}
+                        </span>
+                      </div>
+                      {data.order?.customer_email && (
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                          <span style={{ color: C.textSoft, flexShrink: 0 }}>Email</span>
+                          <span style={{
+                            color: C.textMuted, textAlign: "right", fontSize: 10,
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }}>
+                            {data.order.customer_email}
+                          </span>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                        <span style={{ color: C.textSoft }}>{t.orderRef}</span>
+                        <span style={{
+                          color: C.textMuted, fontFamily: "ui-monospace, monospace", fontSize: 10,
+                        }}>
+                          {data.order?.id?.slice(0, 8)}…{data.order?.id?.slice(-4)}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                        <span style={{ color: C.textSoft }}>{t.issued}</span>
+                        <span style={{ color: C.text, fontWeight: 600 }}>
+                          {fmtDate(ticket.issued_at)} {fmtTime(ticket.issued_at)}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Footer brand */}
@@ -341,8 +352,8 @@ export default function KotorTicketsDisplay() {
             </div>
 
             {/* Actions */}
-            <div style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
-              <button onClick={() => window.print()} className="no-print" style={{
+            <div className="no-print" style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
+              <button onClick={() => window.print()} style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "12px 24px", background: C.primary, color: "#fff",
                 border: "none", borderRadius: 10,
@@ -357,13 +368,26 @@ export default function KotorTicketsDisplay() {
               </button>
             </div>
 
-            {/* Print CSS — sakriva navigaciju, čisti backgrounds, layout za A4 */}
+            {/* Print CSS — svaka karta na svojoj stranici, format prilagođen telefonu */}
             <style>{`
               @media print {
-                body { background: #fff !important; }
+                html, body { background: #fff !important; }
                 .no-print { display: none !important; }
-                @page { size: A4 portrait; margin: 16mm; }
-                button { display: none !important; }
+                @page {
+                  /* Format ~ telefon (9:19.5), kratka strana = 80mm */
+                  size: 80mm 173mm;
+                  margin: 6mm;
+                }
+                .ticket-card {
+                  max-width: 100% !important;
+                  box-shadow: none !important;
+                  page-break-after: always;
+                  break-after: page;
+                }
+                .ticket-card:last-child {
+                  page-break-after: auto;
+                  break-after: auto;
+                }
               }
             `}</style>
           </>
