@@ -29,7 +29,8 @@ const T = {
   en: {
     title: "Kotor City Walls", subtitle: "Purchase entrance tickets",
     desc: "The fortifications of the historic city of Kotor, with ramparts rising to the fortress of San Giovanni, are part of the Venetian Defense System inscribed on the UNESCO World Heritage List. Kotor combines the heritage of Illyria, Byzantium, Venice and Austria, making it one of the most authentic cultural gems of the Adriatic.",
-    selectTickets: "Select tickets",
+    selectTickets: "Select your tickets",
+    selectHint: "Tap + to add a ticket",
     total: "Total", continue: "Continue to details →",
     back: "Back",
     details: "Your details",
@@ -52,7 +53,8 @@ const T = {
   me: {
     title: "Kotorske zidine", subtitle: "Kupovina ulaznica",
     desc: "Utvrđenja istorijskog grada Kotora, sa bedemima koji se uzdižu do tvrđave Sv. Ivan, dio su Venecijanskog odbrambenog sistema upisanog u UNESCO Listu svjetske baštine. Kotor spaja nasljeđe Ilirije, Vizantije, Venecije i Austrije, što ga čini jednim od najautentičnijih kulturnih dragulja Jadrana.",
-    selectTickets: "Izaberi karte",
+    selectTickets: "Odaberi karte",
+    selectHint: "Klikni + da dodaš kartu",
     total: "Ukupno", continue: "Nastavi na podatke →",
     back: "Nazad",
     details: "Tvoji podaci",
@@ -76,6 +78,7 @@ const T = {
     title: "Stadtmauern von Kotor", subtitle: "Eintrittskarten kaufen",
     desc: "Die Befestigungsanlagen der Altstadt von Kotor, deren Mauern bis zur Festung San Giovanni hinaufreichen, sind Teil des Venezianischen Verteidigungssystems, das in die UNESCO-Welterbeliste eingetragen ist. Kotor vereint das Erbe Illyriens, Byzanz', Venedigs und Österreichs und zählt damit zu den authentischsten Kulturjuwelen der Adria.",
     selectTickets: "Tickets auswählen",
+    selectHint: "Auf + tippen, um Tickets hinzuzufügen",
     total: "Gesamt", continue: "Weiter zu Details →",
     back: "Zurück",
     details: "Ihre Angaben",
@@ -98,7 +101,8 @@ const T = {
   ru: {
     title: "Городские стены Котора", subtitle: "Купить входные билеты",
     desc: "Укрепления исторического города Котор со стенами, поднимающимися к крепости Сан-Джованни, входят в Венецианскую оборонительную систему, включённую в Список всемирного наследия ЮНЕСКО. Котор сочетает наследие Иллирии, Византии, Венеции и Австрии, что делает его одной из самых аутентичных культурных жемчужин Адриатики.",
-    selectTickets: "Выбор билетов",
+    selectTickets: "Выберите билеты",
+    selectHint: "Нажмите +, чтобы добавить билет",
     total: "Итого", continue: "Далее к данным →",
     back: "Назад",
     details: "Ваши данные",
@@ -121,7 +125,8 @@ const T = {
   zh: {
     title: "科托尔城墙", subtitle: "购买入场票",
     desc: "科托尔古城的防御工事，其城墙蜿蜒而上直至圣约翰要塞，是被列入联合国教科文组织《世界遗产名录》的威尼斯防御体系的一部分。科托尔融合了伊利里亚、拜占庭、威尼斯和奥地利的文化遗产，是亚得里亚海最具真实历史底蕴的文化瑰宝之一。",
-    selectTickets: "选择门票",
+    selectTickets: "选择您的门票",
+    selectHint: "点击 + 添加门票",
     total: "总计", continue: "继续填写信息 →",
     back: "返回",
     details: "您的信息",
@@ -525,6 +530,33 @@ export default function KotorTicket() {
             {screen === "buy" && (
               <>
                 <StepBar current={1} total={3} />
+
+                {/* CTA heading — jasno označava da je ovo izbor karata */}
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  marginBottom: 12,
+                }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8,
+                    background: C.primarySoft, border: "1px solid #F3CFCF",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    <svg width="16" height="16" fill="none" stroke={C.primary} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                    </svg>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: "-0.2px" }}>
+                      {t.selectTickets}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.textSoft, marginTop: 1 }}>
+                      {t.selectHint}
+                    </div>
+                  </div>
+                </div>
+
                 {loadingCats && <div style={{ padding: 30, textAlign: "center", color: C.textSoft, fontSize: 13 }}>…</div>}
                 {!loadingCats && tickets.length === 0 && (
                   <div style={{ padding: 30, textAlign: "center", color: C.textSoft, fontSize: 13 }}>

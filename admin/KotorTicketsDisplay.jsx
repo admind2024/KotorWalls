@@ -241,77 +241,123 @@ export default function KotorTicketsDisplay() {
               </div>
             </div>
 
-            {/* Tickets */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Tickets — portrait layout, optimizovan za mobilni telefon */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 18, alignItems: "center" }}>
               {data.tickets.map((ticket, i) => (
                 <div key={ticket.id} style={{
-                  background: C.surface, borderRadius: 14,
+                  width: "100%", maxWidth: 360,
+                  background: C.surface, borderRadius: 16,
                   border: `1px solid ${C.border}`,
                   overflow: "hidden",
-                  boxShadow: "0 4px 16px rgba(26,31,43,0.04)",
+                  boxShadow: "0 6px 20px rgba(26,31,43,0.06), 0 1px 3px rgba(26,31,43,0.04)",
                   position: "relative",
+                  pageBreakInside: "avoid",
+                  breakInside: "avoid",
                 }}>
                   {/* Gradient stripe */}
-                  <div style={{ height: 3, background: `linear-gradient(90deg, ${C.gold} 0%, ${C.primary} 100%)` }} />
+                  <div style={{ height: 4, background: `linear-gradient(90deg, ${C.gold} 0%, ${C.primary} 100%)` }} />
 
-                  <div style={{ padding: 20, display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>
-                        {t.ticketOf(i + 1, data.tickets.length)}
-                      </div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: C.text, letterSpacing: "-0.3px", marginBottom: 10 }}>
-                        {ticket.category_name}
-                      </div>
-
-                      <div style={{ display: "grid", gap: 6, fontSize: 12, color: C.textMuted }}>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: C.textSoft }}>{t.price}</span>
-                          <span style={{ color: C.text, fontWeight: 700 }}>€{Number(ticket.price ?? 0).toFixed(2)}</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: C.textSoft }}>{t.issued}</span>
-                          <span style={{ color: C.text }}>{fmtDate(ticket.issued_at)} {fmtTime(ticket.issued_at)}</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ color: C.textSoft }}>{t.status}</span>
-                          <StatusBadge status={ticket.status} t={t} />
-                        </div>
-                      </div>
-
-                      <div style={{
-                        marginTop: 10, fontFamily: "ui-monospace, monospace",
-                        fontSize: 10, color: C.textFaint,
-                      }}>
-                        {ticket.qr_code}
-                      </div>
+                  {/* Top: ticket # + UNESCO mini badge */}
+                  <div style={{
+                    padding: "14px 18px 0",
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, letterSpacing: 0.6, textTransform: "uppercase" }}>
+                      {t.ticketOf(i + 1, data.tickets.length)}
                     </div>
+                    <StatusBadge status={ticket.status} t={t} />
+                  </div>
 
-                    {/* QR image */}
+                  {/* Category — najveći i najbitniji element */}
+                  <div style={{
+                    padding: "8px 18px 16px",
+                    textAlign: "center",
+                  }}>
                     <div style={{
-                      width: 160, height: 160,
-                      background: C.bg, border: `1px solid ${C.border}`,
-                      borderRadius: 10, padding: 8,
+                      fontSize: 22, fontWeight: 800, color: C.text,
+                      letterSpacing: "-0.4px", lineHeight: 1.2,
+                    }}>
+                      {ticket.category_name}
+                    </div>
+                    <div style={{
+                      fontSize: 13, fontWeight: 700, color: C.primary, marginTop: 4,
+                    }}>
+                      €{Number(ticket.price ?? 0).toFixed(2)}
+                    </div>
+                  </div>
+
+                  {/* QR — centriran, veliki */}
+                  <div style={{
+                    display: "flex", justifyContent: "center",
+                    padding: "0 18px 14px",
+                  }}>
+                    <div style={{
+                      width: 220, height: 220,
+                      background: C.surface, border: `1px solid ${C.border}`,
+                      borderRadius: 12, padding: 10,
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
                       {ticket.qr_image_url ? (
                         <img src={ticket.qr_image_url} alt="QR"
                              style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       ) : (
-                        <div style={{ color: C.textFaint, fontSize: 11, textAlign: "center" }}>
+                        <div style={{ color: C.textFaint, fontSize: 12, textAlign: "center" }}>
                           QR<br/>pending
                         </div>
                       )}
                     </div>
                   </div>
 
+                  {/* QR code text — monospace ispod QR-a */}
+                  <div style={{
+                    fontFamily: "ui-monospace, monospace",
+                    fontSize: 11, color: C.textMuted,
+                    textAlign: "center", letterSpacing: 0.4,
+                    padding: "0 18px 14px",
+                    wordBreak: "break-all",
+                  }}>
+                    {ticket.qr_code}
+                  </div>
+
                   {/* Perforation */}
                   <div style={{
-                    borderTop: `1.5px dashed ${C.borderSoft}`,
-                    margin: "0 20px",
                     position: "relative",
-                  }} />
+                    borderTop: `1.5px dashed ${C.borderSoft}`,
+                    margin: "0 18px",
+                  }}>
+                    {/* notches sa strana */}
+                    <div style={{
+                      position: "absolute", left: -25, top: -10,
+                      width: 20, height: 20, borderRadius: "50%",
+                      background: C.bg, border: `1px solid ${C.border}`,
+                    }} />
+                    <div style={{
+                      position: "absolute", right: -25, top: -10,
+                      width: 20, height: 20, borderRadius: "50%",
+                      background: C.bg, border: `1px solid ${C.border}`,
+                    }} />
+                  </div>
 
-                  <div style={{ padding: "12px 20px", fontSize: 11, color: C.textFaint, textAlign: "center", letterSpacing: 0.3 }}>
+                  {/* Detalji — kompaktna lista ispod perforacije */}
+                  <div style={{
+                    padding: "14px 18px 6px",
+                    display: "grid", gap: 6, fontSize: 12,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: C.textSoft }}>{t.issued}</span>
+                      <span style={{ color: C.text, fontWeight: 600 }}>
+                        {fmtDate(ticket.issued_at)} {fmtTime(ticket.issued_at)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer brand */}
+                  <div style={{
+                    padding: "10px 18px 14px",
+                    fontSize: 10, color: C.textFaint,
+                    textAlign: "center", letterSpacing: 0.5, fontWeight: 700,
+                    textTransform: "uppercase",
+                  }}>
                     KOTOR WALLS · {fmtDate(data.order?.paid_at ?? data.order?.created_at)}
                   </div>
                 </div>
@@ -319,26 +365,20 @@ export default function KotorTicketsDisplay() {
             </div>
 
             {/* Actions */}
-            <div style={{ marginTop: 20, display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <div style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
               <button onClick={() => window.print()} className="no-print" style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "12px 24px", background: C.primary, color: "#fff",
-                border: "none", borderRadius: 8,
+                border: "none", borderRadius: 10,
                 fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                boxShadow: "0 1px 2px rgba(178,58,58,0.25)",
-              }}>📥 {t.download}</button>
-              <button
-                onClick={() => {
-                  const txt = data.tickets.map((tk, i) =>
-                    `${t.ticketOf(i + 1, data.tickets.length)} · ${tk.category_name} · ${tk.qr_code}`
-                  ).join("\n");
-                  navigator.clipboard?.writeText(txt);
-                }}
-                className="no-print"
-                style={{
-                  padding: "12px 20px", background: C.surface, color: C.textMuted,
-                  border: `1px solid ${C.border}`, borderRadius: 8,
-                  fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                }}>📋 Kopiraj ID-jeve</button>
+                boxShadow: "0 2px 6px rgba(178,58,58,0.25)",
+              }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                {t.download}
+              </button>
             </div>
 
             {/* Print CSS — sakriva navigaciju, čisti backgrounds, layout za A4 */}
