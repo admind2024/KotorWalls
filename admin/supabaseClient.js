@@ -8,16 +8,32 @@ export const SUPABASE_URL  = URL;
 export const SUPABASE_ANON = ANON;
 
 // ─── Stripe mode toggle (test / live) ───────────────────────────────────────
-// Perzistira u localStorage. Default: live (production).
+// Default: live (production).
+// Read priority: URL param > sessionStorage > localStorage.
+// - URL ?mode=test|live: aktivira mod ZA TAJ TAB (sessionStorage), ne trajno.
+//   Tako ako admin pošalje test link drugoj osobi, ona je u testu samo dok
+//   tab traje — ne ostaje zaglavljena nakon ponovne posjete bez parametra.
+// - Toggle u admin panelu (setStripeMode): trajno u localStorage.
 const STRIPE_MODE_KEY = "kw_stripe_mode";
 
 export function getStripeMode() {
   try {
+    const urlMode = new URLSearchParams(window.location.search).get("mode");
+    if (urlMode === "test" || urlMode === "live") {
+      sessionStorage.setItem(STRIPE_MODE_KEY, urlMode);
+      return urlMode;
+    }
+    const sess = sessionStorage.getItem(STRIPE_MODE_KEY);
+    if (sess === "test" || sess === "live") return sess;
     return localStorage.getItem(STRIPE_MODE_KEY) === "test" ? "test" : "live";
   } catch { return "live"; }
 }
 export function setStripeMode(m) {
-  try { localStorage.setItem(STRIPE_MODE_KEY, m === "test" ? "test" : "live"); } catch {}
+  const v = m === "test" ? "test" : "live";
+  try {
+    localStorage.setItem(STRIPE_MODE_KEY, v);
+    sessionStorage.setItem(STRIPE_MODE_KEY, v); // sync da reload ne dođe u koliziju
+  } catch {}
   window.dispatchEvent(new CustomEvent("kw:mode-change", { detail: m }));
 }
 export function getStripePublishableKey() {

@@ -2423,11 +2423,37 @@ function PaymentModeCard() {
 
       {isTest && (
         <div style={{
-          marginTop: 14, padding: "10px 12px", borderRadius: 8,
+          marginTop: 14, padding: "12px 14px", borderRadius: 8,
           background: C.warningSoft, border: "1px solid #F5DCA8",
-          fontSize: 12, color: "#8A5A00", lineHeight: 1.5,
+          fontSize: 12, color: "#8A5A00", lineHeight: 1.55,
         }}>
-          Sistem je u test modu. Testna kartica: <b>4242 4242 4242 4242</b> · CVC bilo koji · datum u budućnosti.
+          <div style={{ marginBottom: 10 }}>
+            Sistem je u test modu. Testna kartica: <b>4242 4242 4242 4242</b> · CVC bilo koji · datum u budućnosti.
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600 }}>Test link za druge:</span>
+            <code style={{
+              fontFamily: "ui-monospace, monospace", fontSize: 11,
+              background: "#fff", border: "1px solid #F5DCA8",
+              padding: "3px 8px", borderRadius: 5, color: "#5d4915",
+              maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>https://www.kotorwalls.com/?mode=test</code>
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText("https://www.kotorwalls.com/?mode=test");
+              }}
+              style={{
+                padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                background: "#fff", color: "#8A5A00",
+                border: "1px solid #F5DCA8", borderRadius: 5,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>
+              Kopiraj
+            </button>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "#A57820" }}>
+            Test mod aktivan samo dok je tab otvoren — gost se vraća u produkciju nakon zatvaranja taba.
+          </div>
         </div>
       )}
     </div>
